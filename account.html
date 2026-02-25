@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+<script>
+  (function() {
+    const saved = localStorage.getItem("themeMode");
+    if (saved === "dark") {
+      // 1. 先给 <html> 加 dark-mode
+      document.documentElement.classList.add("dark-mode");
+
+      // 2. body 还没生成，用 rAF 等待
+      const applyDark = () => {
+        if (document.body) {
+          document.body.classList.add("dark-mode");
+        } else {
+          requestAnimationFrame(applyDark);
+        }
+      };
+      applyDark();
+    }
+  })();
+</script>
+
+    <meta charset="UTF-8" />
+    <title>账号管理</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- 统一使用订单系统 CSS -->
+    <link rel="stylesheet" href="assets/css/common.css">
+    <link rel="stylesheet" href="assets/css/table.css">
+	<link rel="stylesheet" href="assets/css/table.css">
+
+    <style>
+        body {
+            padding-top: 70px;
+        }
+
+    </style>
+	
+	<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  window.supabaseClient = window.supabase.createClient(
+    "https://kqurjkbsvyfslqibggtc.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo"
+  );
+</script>
+
+</head>
+
+<body>
+
+    <!-- 顶部栏 -->
+    <div id="topBar">
+        <div class="topBar-inner">
+            <h1 id="pageTitle">账号管理</h1>
+
+            <div class="userBar-inline">
+                <div class="user-avatar" id="userAvatar">U</div>
+                <span class="username" id="userName"></span>
+                <span class="username user-role" id="userRole"></span>
+                <button class="logout-btn" onclick="logout()">退出</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div id="stats" class="card-row">
+        <div class="card">
+            <div class="card-title">人员数</div>
+            <div class="card-value" id="stat_count">0</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">基本工资总额</div>
+            <div class="card-value" id="stat_salary_base">0</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">岗位工资总额</div>
+            <div class="card-value" id="stat_salary_post">0</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">电脑补贴总额</div>
+            <div class="card-value" id="stat_salary_computer">0</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">交通补贴总额</div>
+            <div class="card-value" id="stat_salary_traffic">0</div>
+        </div>
+    </div>
+
+    <!-- 工具栏 -->
+    <div class="table-container">
+        <div class="toolbar">
+            <button class="btn btn-primary btn-small" onclick="openAddModal()">新增账号</button>
+
+            <button class="btn btn-gray btn-small" onclick="exportAllData()">导出全部数据</button>
+
+            <input type="file" id="importFile" accept="application/json" onchange="importAllData(event)" style="display:none;">
+            <button class="btn btn-gray btn-small" onclick="document.getElementById('importFile').click()">恢复全部数据</button>
+
+            <button class="btn btn-gray btn-small" onclick="openLogModal()">系统日志</button>
+
+            <input type="text" id="searchInput" placeholder="搜索工号 / 姓名 / 电话 / 备注" oninput="searchAccounts()">
+
+            <button class="btn btn-primary btn-small" onclick="location.href='index.html'">系统入口</button>
+
+            <button class="btn btn-gray btn-small" onclick="toggleTheme()">切换模式</button>
+        </div>
+    </div>
+
+    <!-- 主体内容 -->
+    <div id="mainContent">
+        <div class="table-container">
+            <div class="table-scroll">
+                <table id="accountTable" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>工号</th>
+                            <th>姓名</th>
+                            <th>电话</th>
+                            <th>角色</th>
+                            <th>密码</th>
+                            <th>备注</th>
+                            <th>基本工资</th>
+                            <th>岗位工资</th>
+                            <th>绩效考核</th>
+                            <th>电脑补贴</th>
+                            <th>交通补贴</th>
+                            <th class="col-action">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分页栏（订单系统同款，由 Pagination.render 渲染） -->
+    <div id="pagination"></div>
+
+    <!-- 新增账号弹窗 -->
+    <div class="modal modal-lg" id="addModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title">新增账号</span>
+                <div class="modal-close" onclick="closeAddModal()"></div>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-grid">
+
+                    <div class="form-row"><label>工号</label><input id="acc_jobId"></div>
+                    <div class="form-row"><label>姓名</label><input id="acc_name"></div>
+                    <div class="form-row"><label>电话</label><input id="acc_phone"></div>
+                    <div class="form-row"><label>密码</label><input id="acc_password" type="password"></div>
+
+                    <div class="form-row">
+                        <label>角色</label>
+                        <select id="acc_role">
+                            <option value="admin">管理员</option>
+                            <option value="boss">老板</option>
+                            <option value="staff">员工</option>
+                            <option value="finance">财务</option>
+                            <option value="outsourcing">外包</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row"><label>基本工资</label><input id="acc_salary_base" type="number"></div>
+                    <div class="form-row"><label>岗位工资</label><input id="acc_salary_post" type="number"></div>
+                    <div class="form-row"><label>绩效考核</label><input id="acc_salary_performance" type="number"></div>
+                    <div class="form-row"><label>电脑补贴</label><input id="acc_salary_computer" type="number"></div>
+                    <div class="form-row"><label>交通补贴</label><input id="acc_salary_traffic" type="number"></div>
+
+                    <div class="form-row full-row"><label>备注</label><input id="acc_remark"></div>
+
+                </div>
+
+                <div id="addError" class="form-error"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-gray btn-cancel" onclick="closeAddModal()">取消</button>
+                <button class="btn btn-primary btn-confirm" onclick="addAccount()">添加账号</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改账号弹窗 -->
+    <div class="modal modal-lg" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title">修改账号</span>
+                <div class="modal-close" onclick="closeEditModal()"></div>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-grid">
+
+                    <div class="form-row"><label>工号</label><input id="edit_jobId" readonly></div>
+                    <div class="form-row"><label>姓名</label><input id="edit_name"></div>
+                    <div class="form-row"><label>电话</label><input id="edit_phone"></div>
+                    <div class="form-row"><label>密码</label><input id="edit_password" type="password"></div>
+
+                    <div class="form-row">
+                        <label>角色</label>
+                        <select id="edit_role">
+                            <option value="admin">管理员</option>
+                            <option value="boss">老板</option>
+                            <option value="staff">员工</option>
+                            <option value="finance">财务</option>
+                            <option value="outsourcing">外包</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row"><label>基本工资</label><input id="edit_salary_base" type="number"></div>
+                    <div class="form-row"><label>岗位工资</label><input id="edit_salary_post" type="number"></div>
+                    <div class="form-row"><label>绩效考核</label><input id="edit_salary_performance" type="number"></div>
+                    <div class="form-row"><label>电脑补贴</label><input id="edit_salary_computer" type="number"></div>
+                    <div class="form-row"><label>交通补贴</label><input id="edit_salary_traffic" type="number"></div>
+
+                    <div class="form-row full-row"><label>备注</label><input id="edit_remark"></div>
+
+                </div>
+
+                <div id="editError" class="form-error"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-gray btn-cancel" onclick="closeEditModal()">取消</button>
+                <button class="btn btn-primary btn-confirm" onclick="saveAccountEdit()">保存修改</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div class="modal modal-sm" id="deleteModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title" style="color:var(--danger);">确认删除</span>
+                <div class="modal-close" onclick="closeDeleteModal()"></div>
+            </div>
+
+            <div class="modal-body">
+                <p>删除后不可恢复</p>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-danger btn-confirm" onclick="deleteAccount()">删除</button>
+                <button class="btn btn-gray btn-cancel" onclick="closeDeleteModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 系统日志弹窗 -->
+    <div class="modal modal-lg" id="logModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title">系统日志</span>
+                <div class="modal-close" onclick="closeLogModal()"></div>
+            </div>
+
+            <div class="modal-body">
+                <input type="text" id="logSearchInput" placeholder="搜索账号 / 姓名 / IP / 设备信息" oninput="searchLogs()">
+
+                <div class="table-scroll" style="max-height: 65vh; margin-top: 10px;">
+                    <table class="table table-hover" id="logTable" style="white-space: nowrap;">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>账号</th>
+                                <th>姓名</th>
+                                <th>角色</th>
+                                <th>IP</th>
+                                <th>设备信息</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-danger btn-confirm" onclick="clearLogs()">清空日志</button>
+                <button class="btn btn-gray btn-cancel" onclick="closeLogModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS -->
+	<script src="assets/js/xlsx.full.min.js"></script>
+    <script src="assets/js/common.js"></script>
+    <script src="assets/js/account.js"></script>
+
+</body>
+</html>

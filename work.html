@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+<script>
+  (function() {
+    const saved = localStorage.getItem("themeMode");
+    if (saved === "dark") {
+      // 1. 先给 <html> 加 dark-mode
+      document.documentElement.classList.add("dark-mode");
+
+      // 2. body 还没生成，用 rAF 等待
+      const applyDark = () => {
+        if (document.body) {
+          document.body.classList.add("dark-mode");
+        } else {
+          requestAnimationFrame(applyDark);
+        }
+      };
+      applyDark();
+    }
+  })();
+</script>
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作汇报</title>
+
+    <link rel="stylesheet" href="assets/css/common.css">
+    <link rel="stylesheet" href="assets/css/table.css">
+
+    <style>
+        body {
+            padding-top: 70px;
+        }
+
+        #mainContent .table-scroll {
+            height: auto !important;
+            max-height: none !important;
+            overflow-y: visible !important;
+            overflow-x: auto !important;
+        }
+
+        #mainContent {
+            padding-bottom: 80px !important;
+            margin-top: 20px !important;
+        }
+    </style>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        window.supabaseClient = window.supabase.createClient(
+            "https://kqurjkbsvyfslqibggtc.supabase.co",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo"
+        );
+    </script>
+</head>
+
+<body>
+
+    <!-- 顶部栏 -->
+    <div id="topBar">
+        <div class="topBar-inner">
+            <h1 id="pageTitle">工作汇报</h1>
+
+            <div class="userBar-inline">
+                <div class="user-avatar" id="userAvatar">U</div>
+                <span class="username" id="userName"></span>
+                <span class="username user-role" id="userRole"></span>
+                <button class="logout-btn" onclick="logout()">退出</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计卡片（对齐订单系统） -->
+    <div id="stats" class="card-row">
+        <div class="card">
+            <div class="card-title">未审批记录</div>
+            <div class="card-value" id="stat_pending">0</div>
+        </div>
+        <div class="card">
+            <div class="card-title">工作记录数</div>
+            <div class="card-value" id="stat_total">0</div>
+        </div>
+        <div class="card">
+            <div class="card-title">最近一周记录</div>
+            <div class="card-value" id="stat_week">0</div>
+        </div>
+        <div class="card">
+            <div class="card-title">近一个月记录</div>
+            <div class="card-value" id="stat_month">0</div>
+        </div>
+        <div class="card">
+            <div class="card-title">未填写记录</div>
+            <div class="card-value" id="stat_missing">0</div>
+        </div>
+    </div>
+
+    <!-- 工具栏（对齐订单系统：备份管理 / 导出 / 导入） -->
+    <div class="table-container">
+        <div class="toolbar">
+
+            <button class="btn btn-primary btn-small" onclick="openAddModal()">新增汇报</button>
+
+            <button class="btn btn-gray btn-small" onclick="openBackupManager()">备份管理</button>
+
+            <button class="btn btn-gray btn-small" onclick="exportReportsExcel()">数据导出</button>
+
+            <input type="file" id="importExcel" accept=".xlsx,.xls" onchange="importReportsExcel(event)" style="display:none;">
+            <button class="btn btn-gray btn-small" onclick="document.getElementById('importExcel').click()">数据导入</button>
+
+            <input type="text" id="searchInput" placeholder="搜索姓名 / 内容 / 备注" oninput="searchReports()">
+
+            <button class="btn btn-primary btn-small" onclick="location.href='index.html'">系统入口</button>
+
+            <button class="btn btn-gray btn-small" onclick="toggleTheme()">切换模式</button>
+        </div>
+    </div>
+
+    <!-- 主体内容 -->
+    <div id="mainContent">
+        <div class="table-container">
+            <div class="table-scroll">
+                <table id="reportTable" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>状态</th>
+                            <th>姓名</th>
+                            <th>工作内容</th>
+                            <th>明日计划</th>
+                            <th>备注</th>
+                            <th class="col-action">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分页栏 -->
+    <div id="pagination"></div>
+
+    <!-- 新增汇报弹窗 -->
+    <div class="modal modal-lg" id="addModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title">新增工作汇报</span>
+                <div class="modal-close" onclick="closeAddModal()"></div>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="form-row"><label>日期</label><input id="add_date" type="date"></div>
+                    <div class="form-row"><label>工作内容</label><input id="add_content"></div>
+                    <div class="form-row"><label>明日计划</label><input id="add_plan"></div>
+                    <div class="form-row full-row"><label>备注</label><input id="add_remark"></div>
+                </div>
+                <div id="addError" class="form-error"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-gray btn-cancel" onclick="closeAddModal()">取消</button>
+                <button class="btn btn-primary btn-confirm" onclick="addReport()">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改汇报弹窗 -->
+    <div class="modal modal-lg" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title">修改工作汇报</span>
+                <div class="modal-close" onclick="closeEditModal()"></div>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="form-row"><label>日期</label><input id="edit_date" type="date"></div>
+                    <div class="form-row"><label>工作内容</label><input id="edit_content"></div>
+                    <div class="form-row"><label>明日计划</label><input id="edit_plan"></div>
+                    <div class="form-row full-row"><label>备注</label><input id="edit_remark"></div>
+                </div>
+                <div id="editError" class="form-error"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-gray btn-cancel" onclick="closeEditModal()">取消</button>
+                <button class="btn btn-primary btn-confirm" onclick="saveReportEdit()">保存修改</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认弹窗（对齐订单系统 deleteModal） -->
+    <div class="modal modal-sm" id="deleteModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title" style="color:var(--danger);">确认删除</span>
+                <div class="modal-close" onclick="closeDeleteModal()"></div>
+            </div>
+
+            <div class="modal-body">
+                <p id="deleteText">确认删除该工作汇报吗？</p>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-danger btn-confirm" onclick="confirmDeleteReport()">确认删除</button>
+                <button class="btn btn-gray btn-cancel" onclick="closeDeleteModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 审批确认弹窗（对齐订单系统 completeModal） -->
+    <div class="modal modal-sm" id="approveModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title" style="color:var(--primary);">确认审批</span>
+                <div class="modal-close" onclick="closeApproveModal()"></div>
+            </div>
+
+            <div class="modal-body">
+                <p id="approveText">确认将该工作汇报标记为“已审”吗？</p>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-primary btn-confirm" onclick="confirmApprove()">确认</button>
+                <button class="btn btn-gray btn-cancel" onclick="closeApproveModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 备份管理弹窗（结构对齐订单系统 backupModal） -->
+    <div class="modal modal-md" id="backupModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title">备份管理</span>
+                <div class="modal-close" onclick="closeBackupManager()"></div>
+            </div>
+
+            <div class="modal-body">
+                <div style="margin-bottom:10px;">
+                    <button class="btn btn-primary btn-small" onclick="createBackup()">创建备份</button>
+                </div>
+                <div id="backupList">加载中...</div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-gray btn-cancel" onclick="closeBackupManager()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS -->
+    <script src="assets/js/xlsx.full.min.js"></script>
+    <script src="assets/js/common.js"></script>
+    <script src="assets/js/work.js"></script>
+
+    <script>
+        if (!requireLogin()) throw new Error("Not logged in");
+        Theme.init();
+    </script>
+
+</body>
+</html>

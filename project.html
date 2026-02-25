@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+<script>
+  (function() {
+    const saved = localStorage.getItem("themeMode");
+    if (saved === "dark") {
+      // 1. 先给 <html> 加 dark-mode
+      document.documentElement.classList.add("dark-mode");
+
+      // 2. body 还没生成，用 rAF 等待
+      const applyDark = () => {
+        if (document.body) {
+          document.body.classList.add("dark-mode");
+        } else {
+          requestAnimationFrame(applyDark);
+        }
+      };
+      applyDark();
+    }
+  })();
+</script>
+
+
+    <meta charset="UTF-8" />
+    <title>订单系统</title>
+
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- 样式 -->
+    <link rel="stylesheet" href="assets/css/common.css">
+    <link rel="stylesheet" href="assets/css/table.css">
+    <link rel="stylesheet" href="assets/css/project.css">
+
+    <style>
+        body {
+            padding-top: 70px;
+        }
+    </style>
+	
+	<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  window.supabaseClient = window.supabase.createClient(
+    "https://kqurjkbsvyfslqibggtc.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo"
+  );
+</script>
+
+</head>
+
+<body>
+
+    <!-- 顶部栏（统一组件） -->
+    <div id="topBar">
+        <div class="topBar-inner">
+            <h1 id="pageTitle">订单系统</h1>
+
+            <div class="userBar-inline">
+                <div class="user-avatar" id="userAvatar">U</div>
+                <span class="username" id="userName"></span>
+                <span class="username user-role" id="userRole"></span>
+                <button class="logout-btn" onclick="logout()">退出</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计卡片（统一组件） -->
+        <div id="stats" class="card-row">
+        <div class="card">
+            <div class="card-title">订单数量</div>
+            <div class="card-value" id="stat1">0</div>
+        </div>
+        <div class="card">
+            <div class="card-title">签约总额</div>
+            <div class="card-value" id="stat2">0</div>
+        </div>
+        <div class="card">
+            <div class="card-title">已回款总额</div>
+            <div class="card-value" id="stat3">0</div>
+        </div>
+		<div class="card">
+            <div class="card-title">未回款总额</div>
+            <div class="card-value" id="stat4">0</div>
+        </div>
+		<div class="card">
+            <div class="card-title">筛选金额订单</div>
+            <div class="card-value" id="stat5">0</div>
+        </div>
+    </div>
+
+    <!-- 工具栏（保持原样） -->
+    <div class="table-container">
+        <div class="toolbar">
+
+            <button class="btn btn-primary btn-small" id="btnAdd" onclick="openAdd()">新增订单</button>
+
+            <button class="btn btn-gray btn-small" id="btnBackupManager" onclick="openBackupManager()">备份管理</button>
+
+            <button class="btn btn-gray btn-small" id="btnExport" onclick="exportOrdersExcel()">数据导出</button>
+
+            <input type="file" id="importExcel" accept=".xlsx,.xls" onchange="importOrdersExcel(event)" style="display:none;">
+            <button class="btn btn-gray btn-small" id="btnImport" onclick="document.getElementById('importExcel').click()">数据导入</button>
+
+            <input type="text" id="keyword" placeholder="搜索项目/单位/客户/经理/电话">
+
+            <!-- 系统入口 -->
+            <button class="btn btn-primary btn-small" onclick="location.href='index.html'">系统入口</button>
+
+            <button class="btn btn-gray btn-small" onclick="toggleTheme()">切换模式</button>
+        </div>
+    </div>
+
+    <!-- 主体内容 -->
+    <div id="mainContent">
+        <div class="table-container">
+            <div class="table-scroll">
+                <table id="dataTable" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th class="col-start" data-field="startDate">开始时间</th>
+							<th class="col-status">状态</th>
+                            <th class="col-unit" data-field="unit">项目单位</th>
+                            <th class="col-name" data-field="name">项目名称</th>
+                            <th class="col-customer" data-field="customer">客户名</th>
+                            <th class="col-manager" data-field="manager">客户经理</th>
+                            <th class="col-amount" data-field="amount" id="amountColumn">签约金额</th>
+                            <th class="col-contract" data-field="contract">合同</th>
+                            <th class="col-invoice" data-field="invoice">发票</th>
+                            <th class="col-payment" data-field="payment">回款</th>
+                            <th class="col-commission" data-field="commission">提成</th>
+                            <th class="col-action">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分页栏 -->
+    <div id="pagination"></div>
+
+<!-- 新增/编辑订单弹窗（统一 modal-lg） -->
+<div class="modal modal-lg" id="editModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="title" id="modalTitle">订单信息</span>
+            <div class="modal-close" onclick="closeModal()"></div>
+        </div>
+
+        <div class="modal-body">
+            <div class="form-grid">
+
+                <!-- 第 1 行：3 列 -->
+                <div class="form-row"><label>开始时间</label><input id="m_startDate" type="date"></div>
+                <div class="form-row"><label>项目单位</label><input id="m_unit"></div>
+                <div class="form-row"><label>项目名称</label><input id="m_name"></div>
+
+                <!-- 第 2 行：3 列 -->
+                <div class="form-row"><label>签约金额</label><input id="m_amount" type="number"></div>
+                <div class="form-row"><label>客户名</label><input id="m_customer"></div>
+                <div class="form-row"><label>联系电话</label><input id="m_phone"></div>
+
+                <!-- 第 3 行：3 列 -->
+                <div class="form-row"><label>客户经理</label><input id="m_manager" type="text" autocomplete="off"></div>
+                <div class="form-row"><label>课程顾问</label><input id="m_consultant" type="text" autocomplete="off"></div>
+                <div class="form-row"><label>课程编导</label><input id="m_director" type="text" autocomplete="off"></div>
+
+                <!-- 第 4 行：4 列 -->
+                <div class="form-row"><label>合同</label>
+                    <select id="m_contract">
+                        <option>未签约</option><option>已签约</option><option>不签约</option>
+                    </select>
+                </div>
+
+                <div class="form-row"><label>发票</label>
+                    <select id="m_invoice">
+                        <option>未开票</option><option>已开票</option><option>不开票</option>
+                    </select>
+                </div>
+
+                <div class="form-row"><label>回款</label>
+                    <select id="m_payment">
+                        <option>未回款</option><option>已回款</option><option>少回款</option>
+                    </select>
+                </div>
+
+                <div class="form-row"><label>提成</label>
+                    <select id="m_commission">
+                        <option>未结算</option><option>已结算</option><option>无提成</option>
+                    </select>
+                </div>
+
+                <!-- 第 5 行：备注（整行） -->
+                <div class="form-row full-row">
+                    <label>备注</label>
+                    <textarea id="m_remark" rows="4"></textarea>
+                </div>
+
+                <!-- 第 6 行：操作日志（整行） -->
+                <div class="form-row full-row">
+                    <label>操作日志</label>
+                    <div id="m_logs" class="remark-box" style="white-space: pre-line; max-height: 200px; overflow-y: auto;"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-gray btn-cancel" onclick="closeModal()">取消</button>
+            <button class="btn btn-primary btn-confirm" onclick="saveOrder()">保存</button>
+        </div>
+    </div>
+</div>
+
+
+ <!-- 查看详情弹窗（统一 modal-lg） -->
+<div class="modal modal-lg" id="viewModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="title">订单详情</span>
+            <div class="modal-close" onclick="closeView()"></div>
+        </div>
+
+        <div class="modal-body">
+            <div class="view-grid">
+
+                <!-- 第 1 行：3 列 -->
+                <div class="view-row"><label>开始时间</label><span id="v_startDate"></span></div>
+                <div class="view-row"><label>项目单位</label><span id="v_unit"></span></div>
+                <div class="view-row"><label>项目名称</label><span id="v_name"></span></div>
+
+                <!-- 第 2 行：3 列 -->
+                <div class="view-row"><label>签约金额</label><span id="v_amount"></span></div>
+                <div class="view-row"><label>客户名</label><span id="v_customer"></span></div>
+                <div class="view-row"><label>联系电话</label><span id="v_phone"></span></div>
+
+                <!-- 第 3 行：3 列 -->
+                <div class="view-row"><label>客户经理</label><span id="v_manager"></span></div>
+                <div class="view-row"><label>课程顾问</label><span id="v_consultant"></span></div>
+                <div class="view-row"><label>课程编导</label><span id="v_director"></span></div>
+
+                <!-- 第 4 行：4 列 -->
+                <div class="view-row"><label>合同</label><span id="v_contract"></span></div>
+                <div class="view-row"><label>发票</label><span id="v_invoice"></span></div>
+                <div class="view-row"><label>回款</label><span id="v_payment"></span></div>
+                <div class="view-row"><label>提成</label><span id="v_commission"></span></div>
+
+                <!-- 第 5 行：备注（整行） -->
+                <div class="view-row full-row">
+                    <label>备注</label>
+                    <div id="v_remark" class="remark-box"></div>
+                </div>
+
+                <!-- 第 6 行：操作日志（整行） -->
+                <div class="view-row full-row">
+                    <label>操作日志</label>
+                    <div id="v_logs" class="remark-box" style="white-space: pre-line; max-height: 200px; overflow-y: auto;"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-gray btn-cancel" onclick="closeView()">关闭</button>
+        </div>
+    </div>
+</div>
+
+    <!-- 删除确认弹窗（统一结构） -->
+    <div class="modal modal-sm" id="deleteModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title" style="color:var(--danger);">确认删除</span>
+                <div class="modal-close" onclick="closeDelete()"></div>
+            </div>
+
+            <div class="modal-body">
+                <p id="deleteText"></p>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-danger btn-confirm" onclick="confirmDelete()">确认删除</button>
+                <button class="btn btn-gray btn-cancel" onclick="closeDelete()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 完成状态弹窗（统一结构） -->
+    <div class="modal modal-sm" id="completeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title" style="color:var(--primary);">确认操作</span>
+                <div class="modal-close" onclick="closeComplete()"></div>
+            </div>
+
+            <div class="modal-body">
+                <p id="completeText"></p>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-primary btn-confirm" onclick="confirmComplete()">确认</button>
+                <button class="btn btn-gray btn-cancel" onclick="closeComplete()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 备份管理弹窗（保持 project.html 原版结构） -->
+    <div class="modal modal-md" id="backupModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="title">备份管理</span>
+                <div class="modal-close" onclick="closeBackupManager()"></div>
+            </div>
+
+            <div class="modal-body">
+                <div id="backupList">加载中...</div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-gray btn-cancel" onclick="closeBackupManager()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS -->
+	<script src="assets/js/xlsx.full.min.js"></script>
+    <script src="assets/js/common.js"></script>
+    <script src="assets/js/project.js"></script>
+<script> Theme.init(); </script>
+</body>
+</html>

@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script>
+  (function() {
+    const saved = localStorage.getItem("themeMode");
+    if (saved === "dark") {
+      // 1. 先给 <html> 加 dark-mode
+      document.documentElement.classList.add("dark-mode");
+
+      // 2. body 还没生成，用 rAF 等待
+      const applyDark = () => {
+        if (document.body) {
+          document.body.classList.add("dark-mode");
+        } else {
+          requestAnimationFrame(applyDark);
+        }
+      };
+      applyDark();
+    }
+  })();
+</script>
+
+
+    <meta charset="UTF-8" />
+    <title>财务系统</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+
+    <!-- 公用样式 -->
+    <link rel="stylesheet" href="assets/css/common.css">
+    <link rel="stylesheet" href="assets/css/table.css">
+    <link rel="stylesheet" href="assets/css/finance.css">
+
+    <style>
+        body {
+            padding-top: 70px;
+        }
+    </style>
+	
+	<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  window.supabaseClient = window.supabase.createClient(
+    "https://kqurjkbsvyfslqibggtc.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo"
+  );
+</script>
+
+</head>
+
+<body>
+
+<!-- 顶部栏（统一组件） -->
+<div id="topBar">
+    <div class="topBar-inner">
+        <h1 id="pageTitle">财务系统</h1>
+
+        <div class="userBar-inline">
+            <div class="user-avatar" id="userAvatar">U</div>
+            <span class="username" id="userName"></span>
+            <span class="username user-role" id="userRole"></span>
+            <button class="logout-btn" onclick="logout()">退出</button>
+        </div>
+    </div>
+</div>
+
+<!-- 统计卡片（统一组件） -->
+<div id="stats" class="card-row">
+    <div class="card">
+        <div class="card-title" id="statTitle1">本月报销金额</div>
+        <div class="card-value" id="stat1">¥0.00</div>
+    </div>
+    <div class="card">
+        <div class="card-title" id="statTitle2">待审报销金额</div>
+        <div class="card-value" id="stat2">¥0.00</div>
+    </div>
+    <div class="card">
+        <div class="card-title" id="statTitle3">已报销总额</div>
+        <div class="card-value" id="stat3">¥0.00</div>
+    </div>
+    <div class="card">
+        <div class="card-title" id="statTitle4">待发放总额</div>
+        <div class="card-value" id="stat4">¥0.00</div>
+    </div>
+    <div class="card">
+        <div class="card-title" id="statTitle5">筛选报销金额</div>
+        <div class="card-value" id="stat5">¥0.00</div>
+    </div>
+</div>
+
+<!-- 工具栏（保持原样） -->
+<div class="toolbar">
+
+    <!-- 模块切换 -->
+    <div class="dropdown">
+        <button class="btn btn-primary btn-small" onclick="toggleModuleMenu()" id="moduleBtn">
+            财务报销 ▼
+        </button>
+
+        <div class="dropdown-menu" id="moduleMenu" style="display:none;">
+            <div onclick="switchModule('daily')">财务报销</div>
+            <div onclick="switchModule('payroll')">工资管理</div>
+            <div onclick="switchModule('project')">项目支出</div>
+        </div>
+    </div>
+
+    <!-- 新增 -->
+    <button class="btn btn-primary btn-small" onclick="openAddFinance()" id="btnAdd">新增记录</button>
+
+    <!-- 备份管理 -->
+    <button class="btn btn-gray btn-small" id="btnBackupManager" onclick="openBackupModal()">备份管理</button>
+
+    <!-- 导出 -->
+    <button class="btn btn-gray btn-small" onclick="exportFinanceExcel()" id="btnExport">数据导出</button>
+
+    <!-- 导入 -->
+    <input type="file" id="importFinanceExcel" accept=".xlsx,.xls" onchange="importFinanceExcel(event)" style="display:none;">
+    <button class="btn btn-gray btn-small" id="btnImport" onclick="document.getElementById('importFinanceExcel').click()">数据导入</button>
+
+    <!-- 搜索 -->
+    <input type="text" id="keyword" placeholder="搜索项目/客户/金额/状态">
+
+    <!-- 返回入口 -->
+    <button class="btn btn-primary btn-small" onclick="location.href='index.html'">系统入口</button>
+
+    <!-- 切换模式 -->
+    <button class="btn btn-gray btn-small" onclick="toggleTheme()">切换模式</button>
+</div>
+
+<!-- 主体内容 -->
+<div id="mainContent">
+    <div class="table-container">
+        <div class="table-scroll">
+
+<!-- 财务报销表 -->
+<table id="dailyTable" class="table table-hover finance-table daily-table">
+    <thead>
+        <tr>
+            <th>日期</th>
+            <th>状态</th>
+            <th>经办人</th>
+            <th>项目</th>
+            <th>支出事由</th>
+            <th>金额</th>
+            <th>备注</th>
+            <th class="col-action">操作</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<!-- 工资管理表 -->
+<table id="payrollTable" class="table table-hover finance-table payroll-table" style="display:none;">
+    <thead>
+        <tr>
+            <th>月份</th>
+            <th>状态</th>
+            <th>姓名</th>
+            <th>基本工资</th>
+            <th>岗位工资</th>
+            <th>绩效考核</th>
+            <th>项目提成</th>
+            <th>电脑补贴</th>
+            <th>交通补贴</th>
+            <th>其他</th>
+            <th>实际发放</th>
+            <th>备注</th>
+            <th class="col-action">操作</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<!-- 项目支出表 -->
+<table id="projectTable" class="table table-hover finance-table project-table" style="display:none;">
+    <thead>
+        <tr>
+            <th>日期</th>
+            <th>状态</th>
+            <th>经办人</th>
+            <th>项目</th>
+            <th>支出事由</th>
+            <th>金额</th>
+            <th>备注</th>
+            <th class="col-action">操作</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+
+        </div>
+    </div>
+</div>
+
+<!-- 分页栏 -->
+<div id="pagination"></div>
+
+<!-- 财务报销：新增 / 编辑 -->
+<div id="dailyModal" class="modal modal-md">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="title" id="dailyModalTitle">新增报销记录</span>
+            <div class="modal-close" onclick="closeDailyModal()"></div>
+        </div>
+
+        <div class="modal-body">
+            <div class="finance-grid daily-grid-edit">
+
+                <!-- 第 1 行：3 列 -->
+                <div class="finance-row daily-row row-1"><label>日期</label><input id="d_date" type="date"></div>
+				<div class="finance-row daily-row row-2"> <label>经办人</label> <!-- 展示用 --> <span id="d_payer_display" class="finance-input-display"></span>
+ <!-- 提交用（隐藏字段） --> <input id="d_payer" type="hidden"> </div>
+
+                <div class="finance-row daily-row row-3"><label>金额</label><input id="d_amount" type="number"></div>
+                
+                <!-- 第 2 行：2 列 -->
+                <div class="finance-row daily-row row-4"><label>项目</label><input id="d_project"></div>
+                <div class="finance-row daily-row row-5"><label>支出事由</label><input id="d_item"></div>
+
+                <!-- 第 3 行：整行备注 -->
+                <div class="finance-row daily-row full-row"><label>备注</label><textarea id="d_remark"></textarea></div>
+
+                <!-- 第 4 行：整行操作日志 -->
+                <div class="finance-row daily-row full-row"><label>操作日志</label><div class="finance-remark-box"></div></div>
+
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-gray btn-cancel" onclick="closeDailyModal()">取消</button>
+            <button class="btn btn-primary btn-confirm" onclick="saveDaily()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 财务报销：查看 -->
+<div class="modal modal-lg" id="dailyViewModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="title">报销详情</span>
+            <div class="modal-close" onclick="closeDailyView()"></div>
+        </div>
+
+        <div class="modal-body">
+            <div class="finance-grid daily-grid">
+
+                <div class="finance-row daily-row"><label>审核状态</label><span class="finance-view-box" id="v_d_status"></span></div>
+                <div class="finance-row daily-row"><label>出纳状态</label><span class="finance-view-box" id="v_d_cashier"></span></div>
+
+                <div class="finance-row daily-row"><label>项目</label><span class="finance-view-box" id="v_d_project"></span></div>
+                <div class="finance-row daily-row"><label>支出事由</label><span class="finance-view-box" id="v_d_item"></span></div>
+
+                <div class="finance-row daily-row"><label>日期</label><span class="finance-view-box" id="v_d_date"></span></div>
+                <div class="finance-row daily-row"><label>金额</label><span class="finance-view-box" id="v_d_amount"></span></div>
+                <div class="finance-row daily-row"><label>经办人</label><span class="finance-view-box" id="v_d_payer"></span></div>
+
+                <div class="finance-row daily-row full-row"><label>备注</label><div class="finance-remark-box" id="v_d_remark"></div></div>
+                <div class="finance-row daily-row full-row"><label>操作日志</label><div class="finance-remark-box" id="v_d_logs"></div></div>
+
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-gray btn-cancel" onclick="closeDailyView()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 工资管理：新增 / 编辑 -->
+<div id="payrollModal" class="modal modal-md">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="title" id="payrollModalTitle">新增工资记录</span>
+      <div class="modal-close" onclick="closePayrollModal()"></div>
+    </div>
+
+    <div class="modal-body">
+      <div class="finance-grid payroll-grid-edit">
+
+        <!-- 第 1 行：月份、姓名 -->
+        <div class="finance-row payroll-row row-1">
+          <label>月份</label>
+          <input id="p_month" type="month">
+        </div>
+
+        <div class="finance-row payroll-row row-2">
+        <label>姓名</label>
+        <input id="p_name" type="text" autocomplete="off" oninput="onPayrollNameChange()">
+        </div>
+
+        <!-- 第 2 行：基本工资、岗位工资 -->
+        <div class="finance-row payroll-row row-3">
+          <label>基本工资</label>
+          <input id="p_base" type="number" readonly>
+        </div>
+
+        <div class="finance-row payroll-row row-4">
+          <label>岗位工资</label>
+          <input id="p_position" type="number" readonly>
+        </div>
+
+        <!-- 第 3 行：绩效考核、项目提成 -->
+        <div class="finance-row payroll-row row-5">
+          <label>绩效考核</label>
+          <select id="p_perf" onchange="onPerfLevelChange()"></select> </div>
+
+        <div class="finance-row payroll-row row-6">
+          <label>项目提成</label>
+          <input id="p_bonus" type="number" oninput="calcPayrollTotal()">
+        </div>
+
+        <!-- 第 4 行：电脑补贴、交通补贴 -->
+        <div class="finance-row payroll-row row-7">
+          <label>电脑补贴</label>
+          <input id="p_pc" type="number" readonly>
+        </div>
+
+        <div class="finance-row payroll-row row-8">
+          <label>交通补贴</label>
+          <input id="p_traffic" type="number" readonly>
+        </div>
+
+        <!-- 第 5 行：其他、实际发放 -->
+        <div class="finance-row payroll-row row-9">
+          <label>其他</label>
+          <input id="p_other" type="number" oninput="calcPayrollTotal()">
+        </div>
+
+        <div class="finance-row payroll-row row-10">
+          <label>实际发放</label>
+         <input id="p_actual" type="number" readonly>
+        </div>
+
+        <!-- 第 6 行：备注（整行） -->
+        <div class="finance-row payroll-row full-row">
+          <label>备注</label>
+          <textarea id="p_remark"></textarea>
+        </div>
+
+        <!-- 第 7 行：操作日志（整行，只读展示） -->
+        <div class="finance-row payroll-row full-row">
+          <label>操作日志</label>
+          <div class="finance-remark-box" id="p_logs" style="white-space: pre-line;"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-gray btn-cancel" onclick="closePayrollModal()">取消</button>
+      <button class="btn btn-primary btn-confirm" onclick="savePayroll()">保存</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 工资管理：查看 -->
+<div class="modal modal-lg" id="payrollViewModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="title">工资详情</span>
+            <div class="modal-close" onclick="closePayrollView()"></div>
+        </div>
+
+        <div class="modal-body">
+            <div class="finance-grid payroll-grid-view">
+
+                <!-- 第 1 行：2 列 -->
+                <div class="finance-row payroll-row row-1"><label>审核状态</label><span id="v_p_status" class="finance-view-box"></span></div>
+                <div class="finance-row payroll-row row-2"><label>出纳状态</label><span id="v_p_cashier" class="finance-view-box"></span></div>
+
+                <!-- 第 2 行：2 列 -->
+                <div class="finance-row payroll-row row-3"><label>月份</label><span id="v_p_month" class="finance-view-box"></span></div>
+                <div class="finance-row payroll-row row-4"><label>姓名</label><span id="v_p_name" class="finance-view-box"></span></div>
+
+                <!-- 第 3 行：4 列 -->
+                <div class="finance-row payroll-row row-5"><label>基本工资</label><span id="v_p_base" class="finance-view-box"></span></div>
+                <div class="finance-row payroll-row row-6"><label>岗位工资</label><span id="v_p_position" class="finance-view-box"></span></div>
+                <div class="finance-row payroll-row row-7"><label>绩效考核</label><span id="v_p_perf" class="finance-view-box"></span></div>
+                <div class="finance-row payroll-row row-8"><label>项目提成</label><span id="v_p_bonus" class="finance-view-box"></span></div>
+
+                <!-- 第 4 行：4 列 -->
+                <div class="finance-row payroll-row row-9"><label>电脑补贴</label><span id="v_p_pc" class="finance-view-box"></span></div>
+                <div class="finance-row payroll-row row-10"><label>交通补贴</label><span id="v_p_traffic" class="finance-view-box"></span></div>
+                <div class="finance-row payroll-row row-11"><label>其他</label><span id="v_p_other" class="finance-view-box"></span></div>
+                <div class="finance-row payroll-row row-12"><label>实际发放</label><span id="v_p_actual" class="finance-view-box"></span></div>
+
+                <!-- 第 5 行：整行备注 -->
+                <div class="finance-row payroll-row full-row"><label>备注</label><div id="v_p_remark" class="finance-remark-box"></div></div>
+
+                <!-- 第 6 行：整行操作日志 -->
+                <div class="finance-row payroll-row full-row"><label>操作日志</label><div id="v_p_logs" class="finance-remark-box"></div></div>
+
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-gray btn-cancel" onclick="closePayrollView()">关闭</button>
+        </div>
+    </div>
+</div>
+
+	
+<!-- 项目支出：新增 / 编辑 -->
+<div id="projectModal" class="modal modal-md">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="title" id="projectModalTitle">新增项目支出</span>
+            <div class="modal-close" onclick="closeProjectModal()"></div>
+        </div>
+
+        <div class="modal-body">
+            <div class="finance-grid project-grid-edit">
+
+                <!-- 第 1 行：3 列 -->
+                <div class="finance-row project-row row-1"><label>日期</label><input id="j_date" type="date"></div>
+                <div class="finance-row project-row row-2"> <label>经办人</label> <span id="j_payer_display" class="finance-input-display"></span>
+ <input id="j_payer" type="hidden"> </div>
+                <div class="finance-row project-row row-3"><label>金额</label><input id="j_amount" type="number"></div>
+
+                <!-- 第 2 行：2 列 -->
+                <div class="finance-row project-row row-4"><label>项目</label><input id="j_project"></div>
+                <div class="finance-row project-row row-5"><label>支出事由</label><input id="j_item"></div>
+
+                <!-- 第 3 行：整行备注 -->
+                <div class="finance-row project-row full-row"><label>备注</label><textarea id="j_remark"></textarea></div>
+
+                <!-- 第 4 行：整行操作日志（新增时为空） -->
+                <div class="finance-row project-row full-row"><label>操作日志</label><div class="finance-remark-box"></div></div>
+
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-gray btn-cancel" onclick="closeProjectModal()">取消</button>
+            <button class="btn btn-primary btn-confirm" onclick="saveProject()">保存</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- 项目支出：查看 -->
+<div class="modal modal-lg" id="projectViewModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="title">项目支出详情</span>
+            <div class="modal-close" onclick="closeProjectView()"></div>
+        </div>
+
+        <div class="modal-body">
+            <div class="finance-grid project-grid">
+
+                <div class="finance-row project-row"><label>审核状态</label><span class="finance-view-box" id="v_j_status"></span></div>
+                <div class="finance-row project-row"><label>出纳状态</label><span class="finance-view-box" id="v_j_cashier"></span></div>
+
+                <div class="finance-row project-row"><label>日期</label><span class="finance-view-box" id="v_j_date"></span></div>
+                <div class="finance-row project-row"><label>经办人</label><span class="finance-view-box" id="v_j_payer"></span></div>
+                <div class="finance-row project-row"><label>金额</label><span class="finance-view-box" id="v_j_amount"></span></div>
+
+                <div class="finance-row project-row"><label>项目</label><span class="finance-view-box" id="v_j_project"></span></div>
+                <div class="finance-row project-row"><label>支出事由</label><span class="finance-view-box" id="v_j_item"></span></div>
+
+                <div class="finance-row project-row full-row"><label>备注</label><div class="finance-remark-box" id="v_j_remark"></div></div>
+                <div class="finance-row project-row full-row"><label>操作日志</label><div class="finance-remark-box" id="v_j_logs"></div></div>
+
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-gray btn-cancel" onclick="closeProjectView()">关闭</button>
+        </div>
+    </div>
+</div>
+	
+
+<!-- 删除确认弹窗（统一结构） -->
+<div class="modal modal-sm" id="financeDeleteModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="title" style="color:var(--danger);">确认删除</span>
+            <div class="modal-close" onclick="closeFinanceDelete()"></div>
+        </div>
+
+        <div class="modal-body">
+            <p id="financeDeleteText"></p>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-danger btn-confirm" onclick="confirmFinanceDelete()">确认删除</button>
+            <button class="btn btn-gray btn-cancel" onclick="closeFinanceDelete()">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 备份管理弹窗（统一为 project.html 结构） -->
+<div class="modal modal-md" id="backupModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="title">备份管理</span>
+            <div class="modal-close" onclick="closeBackupModal()"></div>
+        </div>
+
+        <div class="modal-body">
+            <div id="backupList"></div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-gray btn-cancel" onclick="closeBackupModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 通用确认弹窗（统一结构） -->
+<div class="modal modal-sm" id="confirmModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="title">确认操作</span>
+            <div class="modal-close"></div>
+        </div>
+
+        <div class="modal-body">
+            <div id="confirmMessage" class="modal-message"></div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-primary btn-confirm" onclick="Confirm.confirm()">确定</button>
+            <button class="btn btn-gray btn-cancel" onclick="Modal.close('confirmModal')">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- JS -->
+<script src="assets/js/xlsx.full.min.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/finance.js"></script>
+
+</body>
+</html>

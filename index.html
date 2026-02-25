@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+<script>
+  (function() {
+    const saved = localStorage.getItem("themeMode");
+    if (saved === "dark") {
+      // 1. 先给 <html> 加 dark-mode
+      document.documentElement.classList.add("dark-mode");
+
+      // 2. body 还没生成，用 rAF 等待
+      const applyDark = () => {
+        if (document.body) {
+          document.body.classList.add("dark-mode");
+        } else {
+          requestAnimationFrame(applyDark);
+        }
+      };
+      applyDark();
+    }
+  })();
+</script>
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统入口</title>
+
+
+    <link rel="stylesheet" href="assets/css/common.css">
+
+    <style>
+        body {
+    padding-top: 70px;
+    height: 100vh;              /* 关键：锁定视口高度 */
+    overflow: hidden;           /* 禁止出现上下滚动条 */
+}
+
+/* 外层容器：让四个卡片整体居中偏上 */
+.module-wrapper {
+    height: calc(100vh - 70px); /* 顶部栏 70px，剩余区域完全占满 */
+    display: flex;
+    align-items: flex-start;    /* 靠上对齐 */
+    justify-content: center;
+    padding-top: 80px;          /* 控制“偏上”的距离，可微调 */
+    box-sizing: border-box;
+}
+
+/* 四个卡片固定一行，不允许换行 */
+.module-grid {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 26px;
+
+    width: 100%;
+    max-width: 1100px;
+    padding: 0 20px;
+
+    flex-wrap: nowrap; /* 禁止换行 */
+}
+
+/* 卡片：做矮一点 + 完全居中对齐 */
+.module-card {
+    width: 230px;
+    height: 160px;
+
+    background: var(--card-bg, #ffffff);
+    border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+    border: 1px solid var(--border-color, #e5e5e5);
+
+    cursor: pointer;
+    transition: all .25s ease;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.module-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, .10);
+}
+
+/* 深色模式 */
+body.dark-mode .module-card {
+    background: #1f2933;
+    border-color: #3b4252;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .6);
+}
+
+/* 图标块 */
+.module-icon-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: #fff;
+    margin-bottom: 8px;
+}
+
+/* 图标颜色 */
+.module-icon-orders { background: linear-gradient(135deg, #4e73df, #1cc8ff); }
+.module-icon-finance { background: linear-gradient(135deg, #1cc88a, #17a673); }
+.module-icon-staff { background: linear-gradient(135deg, #f6c23e, #f4b619); }
+.module-icon-work { background: linear-gradient(135deg, #e74a3b, #f06a6a); }
+
+/* 深色模式图标 */
+body.dark-mode .module-icon-orders { background: linear-gradient(135deg, #6c8bff, #4aa8ff); }
+body.dark-mode .module-icon-finance { background: linear-gradient(135deg, #4fd6a8, #2fbf8a); }
+body.dark-mode .module-icon-staff { background: linear-gradient(135deg, #ffd56a, #f4c542); }
+body.dark-mode .module-icon-work { background: linear-gradient(135deg, #ff7b6b, #ff5c5c); }
+
+.module-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.module-sub {
+    font-size: 12px;
+    opacity: .65;
+}
+
+.hidden {
+    display: none;
+}
+		
+    </style>
+
+</head>
+
+<body>
+
+    <!-- 顶部栏（保持不变） -->
+    <div id="topBar">
+        <div class="topBar-inner">
+            <h1 id="pageTitle">系统入口</h1>
+
+            <div class="userBar-inline">
+                <div class="user-avatar" id="userAvatar">U</div>
+                <span class="username" id="userName"></span>
+                <span class="username" id="userRole" style="opacity: 0.7;"></span>
+                <button class="logout-btn" onclick="logout()">退出</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 四大系统模块：缩小后的图标卡片，整体居中偏上 -->
+    <div class="module-wrapper">
+        <div class="module-grid">
+
+            <div class="module-card hidden" onclick="enterProject()">
+                <div class="module-icon-wrap module-icon-orders">📦</div>
+                <div class="module-title">订单系统</div>
+                <div class="module-sub">Order System</div>
+            </div>
+
+            <div class="module-card hidden" onclick="enterFinance()">
+                <div class="module-icon-wrap module-icon-finance">💰</div>
+                <div class="module-title">财务系统</div>
+                <div class="module-sub">Finance System</div>
+            </div>
+
+            <!-- 人员系统：默认隐藏，只有 admin / boss 能看到 -->
+            <div class="module-card hidden" id="staffCard" onclick="enterStaff()">
+                <div class="module-icon-wrap module-icon-staff">👥</div>
+                <div class="module-title">人员系统</div>
+                <div class="module-sub">Staff System</div>
+            </div>
+
+            <!-- 工作汇报：按角色控制显示 -->
+            <div class="module-card hidden" id="workCard" onclick="enterWork()">
+                <div class="module-icon-wrap module-icon-work">📝</div>
+                <div class="module-title">工作汇报</div>
+                <div class="module-sub">Work Report</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JS -->
+    <script src="assets/js/common.js"></script>
+
+    <script>
+        if (!requireLogin()) throw new Error("Not logged in");
+
+        function enterFinance() { location.href = "finance.html"; }
+        function enterProject() { location.href = "project.html"; }
+        function enterStaff() { location.href = "account.html"; }
+        function enterWork() { location.href = "work.html"; }
+
+        document.addEventListener("DOMContentLoaded", () => {
+    const sessionUser = JSON.parse(sessionStorage.getItem("sessionUser") || "null");
+    if (!sessionUser) return;
+
+    const role = sessionUser.role;
+
+    // ⭐ 显示所有卡片
+    document.querySelectorAll(".module-card").forEach(card => {
+        card.classList.remove("hidden");
+    });
+
+    // ⭐ 限制人员系统权限：财务 / 员工 / 外包不能点击
+    if (role === "finance" || role === "staff" || role === "outsourcing") {
+        staffCard.onclick = null;
+        staffCard.title = "无权限";
+        staffCard.style.cursor = "not-allowed";
+    }
+
+    // ⭐ 工作汇报暂未开放：禁止点击 + 悬停提示
+    const workCard = document.getElementById("workCard");
+    workCard.onclick = null;
+    workCard.title = "暂未开放";
+    workCard.style.cursor = "not-allowed";
+});
+
+    </script>
+
+</body>
+
+</html>

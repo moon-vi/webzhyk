@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script>
+  (function() {
+    const saved = localStorage.getItem("themeMode");
+    if (saved === "dark") {
+      // 1. 先给 <html> 加 dark-mode
+      document.documentElement.classList.add("dark-mode");
+
+      // 2. body 还没生成，用 rAF 等待
+      const applyDark = () => {
+        if (document.body) {
+          document.body.classList.add("dark-mode");
+        } else {
+          requestAnimationFrame(applyDark);
+        }
+      };
+      applyDark();
+    }
+  })();
+</script>
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统登录</title>
+	
+    <!-- 通用样式 -->
+    <link rel="stylesheet" href="assets/css/common.css">
+	
+	<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  window.supabaseClient = window.supabase.createClient(
+    "https://kqurjkbsvyfslqibggtc.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo"
+  );
+</script>
+
+</head>
+
+<body class="auth-body">
+
+    <!-- 深色模式按钮放在最外层，避免跳动 -->
+    <button class="theme-toggle" onclick="toggleTheme()">切换模式</button>
+
+    <div class="auth-container">
+        <div class="auth-box">
+            <h2 class="auth-title">系统登录</h2>
+
+
+
+            <div class="auth-field">
+                <label>账号</label>
+                <input type="text" id="username" placeholder="请输入账号">
+            </div>
+
+            <div class="auth-field">
+                <label>密码</label>
+                <input type="password" id="password" placeholder="请输入密码">
+            </div>
+
+            <button class="btn-primary auth-btn" onclick="login()">登录</button>
+
+            <div class="auth-error" id="authError"></div>
+        </div>
+    </div>
+
+    <!-- 通用 JS -->
+    <script src="assets/js/common.js"></script>
+</body>
+</html>
