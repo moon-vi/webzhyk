@@ -1,0 +1,285 @@
+/* ============================================================
+   模块切换下拉菜单（财务系统独有）
+============================================================ */
+.dropdown {
+    position: relative;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 6px 0;
+    z-index: 9999;
+    min-width: 120px;
+}
+
+.dropdown-menu div {
+    padding: 8px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.dropdown-menu div:hover {
+    background: var(--row-hover-bg);
+}
+/* ============================================================
+   通用弹窗基础布局
+============================================================ */
+.finance-grid {
+  display: grid;
+  gap: 14px 20px;
+}
+
+.finance-row {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 4px 0;
+}
+
+.finance-row label {
+  text-align: right;
+  padding-right: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: .85;
+}
+
+.full-row {
+  grid-column: 1 / -1;
+}
+
+/* 内容框（查看窗口右侧 span） */
+.finance-view-box {
+  display: block;
+  background: var(--bg);
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  min-height: 20px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+/* 备注 / 日志盒子 */
+.finance-remark-box {
+  background: var(--bg);
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  white-space: pre-wrap;
+  min-height: 80px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   财务报销（daily）布局
+   - daily-grid      ：查看窗口用（保持原来的 nth-child 规则）
+   - daily-grid-edit ：新增/编辑窗口用（row-1 / row-2 / row-3）
+============================================================ */
+
+/* 查看窗口用：沿用你原来的布局规则 */
+.daily-grid {
+  grid-template-columns: repeat(12, 1fr);
+}
+
+/* 第 1 行：2 列 */
+.daily-grid .daily-row:nth-child(-n+2) {
+  grid-column: span 6;
+}
+
+/* 第 2 行：2 列 */
+.daily-grid .daily-row:nth-child(n+3):nth-child(-n+4) {
+  grid-column: span 6;
+}
+
+/* 第 3 行：3 列 */
+.daily-grid .daily-row:nth-child(n+5):nth-child(-n+7) {
+  grid-column: span 4;
+}
+
+/* 第 4、5 行：整行 */
+.daily-grid .full-row {
+  grid-column: 1 / -1;
+}
+
+/* 新增 / 编辑专用布局 */
+.daily-grid-edit {
+  grid-template-columns: repeat(12, 1fr);
+}
+
+/* 第 1 行：3 列（日期、金额、经办人） */
+.daily-grid-edit .daily-row.row-1,
+.daily-grid-edit .daily-row.row-2,
+.daily-grid-edit .daily-row.row-3 {
+  grid-column: span 4;
+}
+
+/* 第 2 行：2 列（项目、支出事由） */
+.daily-grid-edit .daily-row.row-4,
+.daily-grid-edit .daily-row.row-5 {
+  grid-column: span 6;
+}
+
+/* 第 3、4 行：整行（备注、操作日志） */
+.daily-grid-edit .daily-row.full-row {
+  grid-column: 1 / -1;
+}
+
+/* ============================================================
+   工资管理（payroll）查看窗口布局（最终版）
+============================================================ */
+.payroll-grid-view {
+  grid-template-columns: repeat(12, 1fr);
+}
+
+/* 第 1 行：2 列（审核状态、出纳状态） */
+.payroll-grid-view .payroll-row.row-1,
+.payroll-grid-view .payroll-row.row-2 {
+  grid-column: span 6;
+}
+
+/* 第 2 行：2 列（月份、姓名） */
+.payroll-grid-view .payroll-row.row-3,
+.payroll-grid-view .payroll-row.row-4 {
+  grid-column: span 6;
+}
+
+/* 第 3 行：4 列（基本工资、岗位工资、绩效考核、项目提成） */
+.payroll-grid-view .payroll-row.row-5,
+.payroll-grid-view .payroll-row.row-6,
+.payroll-grid-view .payroll-row.row-7,
+.payroll-grid-view .payroll-row.row-8 {
+  grid-column: span 3;
+}
+
+/* 第 4 行：4 列（电脑补贴、交通补贴、其他、实际发放） */
+.payroll-grid-view .payroll-row.row-9,
+.payroll-grid-view .payroll-row.row-10,
+.payroll-grid-view .payroll-row.row-11,
+.payroll-grid-view .payroll-row.row-12 {
+  grid-column: span 3;
+}
+
+/* 第 5、6 行：整行（备注、操作日志） */
+.payroll-grid-view .payroll-row.full-row {
+  grid-column: 1 / -1;
+}
+
+/* ============================================================
+   工资管理（payroll）新增 / 编辑布局（最终版）
+============================================================ */
+.payroll-grid-edit {
+  grid-template-columns: repeat(12, 1fr);
+}
+
+/* 第 1 行：2 列（月份、姓名） */
+.payroll-grid-edit .payroll-row.row-1,
+.payroll-grid-edit .payroll-row.row-2 {
+  grid-column: span 6; /* 12 / 2 = 6 */
+}
+
+/* 第 2 行：4 列（基本工资、岗位工资、绩效考核、项目提成） */
+.payroll-grid-edit .payroll-row.row-3,
+.payroll-grid-edit .payroll-row.row-4,
+.payroll-grid-edit .payroll-row.row-5,
+.payroll-grid-edit .payroll-row.row-6 {
+  grid-column: span 3; /* 12 / 4 = 3 */
+}
+
+/* 第 3 行：4 列（电脑补贴、交通补贴、其他、实际发放） */
+.payroll-grid-edit .payroll-row.row-7,
+.payroll-grid-edit .payroll-row.row-8,
+.payroll-grid-edit .payroll-row.row-9,
+.payroll-grid-edit .payroll-row.row-10 {
+  grid-column: span 3;
+}
+
+/* 第 4、5 行：整行（备注、操作日志） */
+.payroll-grid-edit .payroll-row.full-row {
+  grid-column: 1 / -1;
+}
+
+/* ============================================================
+   项目支出（project）布局
+============================================================ */
+.project-grid {
+  grid-template-columns: repeat(12, 1fr);
+}
+
+/* 第 1 行：2 列 */
+.project-grid .project-row:nth-child(-n+2) {
+  grid-column: span 6;
+}
+
+/* 第 2 行：3 列 */
+.project-grid .project-row:nth-child(n+3):nth-child(-n+5) {
+  grid-column: span 4;
+}
+
+/* 第 3 行：2 列 */
+.project-grid .project-row:nth-child(n+6):nth-child(-n+7) {
+  grid-column: span 6;
+}
+
+/* 第 4、5 行：整行 */
+.project-grid .full-row {
+  grid-column: 1 / -1;
+}
+/* ============================================================
+   项目支出（project）新增 / 编辑布局（独立版本）
+============================================================ */
+.project-grid-edit {
+  grid-template-columns: repeat(12, 1fr);
+}
+
+/* 第 1 行：3 列（日期、经办人、金额） */
+.project-grid-edit .project-row.row-1,
+.project-grid-edit .project-row.row-2,
+.project-grid-edit .project-row.row-3 {
+  grid-column: span 4; /* 12 / 3 = 4 */
+}
+
+/* 第 2 行：2 列（项目、支出事由） */
+.project-grid-edit .project-row.row-4,
+.project-grid-edit .project-row.row-5 {
+  grid-column: span 6; /* 12 / 2 = 6 */
+}
+
+/* 第 3、4 行：整行（备注、操作日志） */
+.project-grid-edit .project-row.full-row {
+  grid-column: 1 / -1;
+}
+
+/* ============================================================
+   伪输入框样式（用于经办人 span）
+============================================================ */
+.finance-input-display {
+  display: block;
+  width: 100%;
+  height: 32px;
+  line-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);              /* 自动适配深色/浅色 */
+  color: var(--text-color);           /* 自动适配深色/浅色 */
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+/* ============================================================
+   响应式
+============================================================ */
+@media (max-width: 900px) {
+  .finance-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
