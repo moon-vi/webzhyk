@@ -1,0 +1,142 @@
+/* ============================================================
+   新增 / 编辑订单弹窗 — 多列组合布局（严格按截图）
+============================================================ */
+
+/* 整体使用 12 列网格作为基准 */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 14px 20px;
+}
+
+/* 每个字段块内部：左 60px label + 右内容 */
+.form-row {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 4px 0;
+}
+
+/* label 样式 */
+.form-row label {
+  display: block;
+  text-align: right;
+  padding-right: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: .85;
+}
+
+/* ====== 多列组合规则（新增 / 编辑）====== */
+
+/* 第 1～9 个字段：每个占 4 列 → 一行 3 个 */
+.form-grid .form-row:nth-child(-n+9) {
+  grid-column: span 4;
+}
+
+/* 第 10～13 个字段：每个占 3 列 → 一行 4 个 */
+.form-grid .form-row:nth-child(n+10):nth-child(-n+13) {
+  grid-column: span 3;
+}
+
+/* 备注、操作日志：整行 */
+.form-grid .full-row {
+  grid-column: 1 / -1;
+}
+
+/* 备注盒子 */
+.remark-box {
+  background: var(--bg);
+  padding: 10px;
+  border-radius: 8px;
+  min-height: 80px;
+  border: 1px solid var(--line);
+  white-space: pre-wrap;
+}
+
+/* ============================================================
+   查看详情弹窗 — 多列组合布局（严格按截图）
+============================================================ */
+
+.view-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 14px 20px;
+}
+
+.view-row {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 4px 0;
+}
+
+/* label 样式 */
+.view-row label {
+  font-size: 14px;
+  opacity: .75;
+  text-align: right;
+  padding-right: 4px;
+  font-weight: 600;
+}
+
+/* 第 1～9 个字段：3 列 */
+.view-grid .view-row:nth-child(-n+9) {
+  grid-column: span 4;
+}
+
+/* 第 10～13 个字段：4 列 */
+.view-grid .view-row:nth-child(n+10):nth-child(-n+13) {
+  grid-column: span 3;
+}
+
+/* 备注、操作日志：整行 */
+.view-grid .full-row {
+  grid-column: 1 / -1;
+}
+
+/* 操作日志盒子（与备注一致） */
+#v_logs,
+#m_logs {
+  background: var(--bg);
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  white-space: pre-line;
+  max-height: 200px;
+  overflow-y: auto;
+}
+/* ============================================================
+   查看窗口内容：右侧内容也加框和底色（与备注一致）
+============================================================ */
+
+/* 让查看窗口右侧内容（span）变成一个小内容盒子 */
+.view-row span {
+    display: block;
+    background: var(--bg);
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    min-height: 20px;          /* 保证高度统一 */
+    line-height: 1.4;
+    white-space: pre-wrap;     /* 自动换行 */
+}
+
+/* 响应式优化（保持不变） */
+@media (max-width: 900px) {
+  .form-grid,
+  .view-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #dataTable th,
+  #dataTable td {
+    white-space: normal;
+  }
+
+  #keyword {
+    min-width: 180px;
+  }
+}
