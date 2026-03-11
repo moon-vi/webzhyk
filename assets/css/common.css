@@ -1034,3 +1034,14 @@ html.dark-mode #pagination {
     background: #1e1e1e !important;
 }
 
+#logTable tbody {
+    display: block;
+    max-height: 400px; /* 可调整 */
+    overflow-y: auto;
+}
+
+#logTable thead, #logTable tbody tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+}
