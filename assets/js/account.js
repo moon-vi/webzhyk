@@ -334,7 +334,7 @@ function roleName(role) {
 }
 
 /* ============================================================
-八、日志系统
+八、日志系统（显示 15 条、最多保留 50 条、最新在最上）
 ============================================================ */
 async function openLogModal() {
     const supabase = window.supabaseClient;
@@ -342,7 +342,7 @@ async function openLogModal() {
     const { data, error } = await supabase
         .from("account_logs")
         .select("*")
-        .order("time", { ascending: false });
+        .order("id", { ascending: false }); // ★ 最新在最上
 
     if (error) {
         console.error("加载日志失败：", error);
@@ -359,7 +359,9 @@ async function openLogModal() {
 
 function renderLogTable() {
     const tbody = document.querySelector("#logTable tbody");
-    const list = window._filteredLogs || [];
+
+    // ★ 只显示前 15 条
+    const list = (window._filteredLogs || []).slice(0, 15);
 
     if (!list.length) {
         tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">暂无日志</td></tr>`;
@@ -416,7 +418,6 @@ async function clearLogs() {
     if (error) {
         console.error("清空日志失败：", error);
         alert("清空日志失败，请检查控制台");
-
         return;
     }
 

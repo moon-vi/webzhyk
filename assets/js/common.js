@@ -575,13 +575,13 @@ function toggleTheme(event) {
 }
 
 /* ============================================================
-12. 登录日志记录（时间、IP、设备）——改成兼容 Supabase 用户结构
+12. 登录日志记录（时间、IP、设备）——Supabase REST + keepalive
 ============================================================ */
 async function recordLoginLog(user) {
     const supabaseUrl = "https://kqurjkbsvyfslqibggtc.supabase.co";
-    const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo";
+    const anonKey = "你的真实 anon key"; // ★ 必须替换成真实 anon key
 
-    // 获取 IP
+    // 获取 IP（失败不影响）
     let ip = "unknown";
     try {
         const res = await fetch("https://api.ipify.org?format=json");
@@ -598,7 +598,7 @@ async function recordLoginLog(user) {
         ua: navigator.userAgent
     };
 
-    // ★★★ 使用 fetch + keepalive，不会阻塞跳转，也能带 headers
+    // ★ 使用 fetch + keepalive，不阻塞跳转，且能带 headers
     fetch(`${supabaseUrl}/rest/v1/account_logs`, {
         method: "POST",
         headers: {
@@ -608,8 +608,34 @@ async function recordLoginLog(user) {
             "Prefer": "return=minimal"
         },
         body: JSON.stringify(logItem),
-        keepalive: true   // ★★★ 关键：允许在页面跳转后继续发送
+        keepalive: true
     });
+
+    // ★ 写入后自动清理旧日志（最多保留 50 条）
+    cleanupOldLogs();
+}
+
+/* ============================================================
+12.1 清理旧日志（最多保留 50 条）
+============================================================ */
+async function cleanupOldLogs() {
+    const supabase = window.supabaseClient;
+
+    const { data, error } = await supabase
+        .from("account_logs")
+        .select("id")
+        .order("id", { ascending: false });
+
+    if (error || !data) return;
+
+    if (data.length <= 50) return;
+
+    const idsToDelete = data.slice(50).map(row => row.id);
+
+    await supabase
+        .from("account_logs")
+        .delete()
+        .in("id", idsToDelete);
 }
 
 /* ============================================================
