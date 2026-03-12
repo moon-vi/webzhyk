@@ -119,32 +119,31 @@ function render() {
 
     const tbody = document.querySelector("#dataTable tbody");
 
-    // ★★★★★ 第一次渲染时 tbody 是空的 → 先渲染一行假数据用于测量行高
+    // ★ 第一次渲染时插入假行用于测量行高
     if (tbody.children.length === 0) {
         tbody.innerHTML = `
             <tr><td style="height:40px; padding:0; margin:0;" colspan="20"></td></tr>
         `;
     }
 
-    // ★★★★★ 现在 calcPageSize() 一定能测到正确行高
+    // ★ 动态计算 pageSize（关键：重置 currentPage）
     const newSize = calcPageSize();
-if (newSize && newSize !== PaginationManager.pageSize) {
-    PaginationManager.pageSize = newSize;
-    PaginationManager.currentPage = 1;
-}
+    if (newSize && newSize !== PaginationManager.pageSize) {
+        PaginationManager.pageSize = newSize;
+        PaginationManager.currentPage = 1;   // ★ 必须放这里
+    }
 
-
-    // 清空假数据
+    // 清空假行
     tbody.innerHTML = "";
 
-
+    // 搜索过滤
     const keyword = document.getElementById("keyword").value.trim();
     let data = keyword ? AutoSearch.run(orders, keyword, "dataTable") : orders;
 
     const user = Auth.currentUser || {};
     const role = user.role;
 
-    // ★ 员工 / 外包：只能看到自己订单
+    // 员工 / 外包：只能看到自己订单
     if (role === "staff" || role === "outsourcing") {
         data = data.filter(o =>
             o.manager === user.name ||
@@ -153,13 +152,20 @@ if (newSize && newSize !== PaginationManager.pageSize) {
         );
     }
 
+    // 排序
     data = Utils.sortByDate(data, "startDate");
 
     const total = data.length;
+
+    // ★ 关键：每次过滤后必须重新检查 currentPage 是否越界
+    const maxPage = Math.ceil(total / PaginationManager.pageSize) || 1;
+    if (PaginationManager.currentPage > maxPage) {
+        PaginationManager.currentPage = 1;   // ★ 关键修复点
+    }
+
     const pageData = PaginationManager.slice(data);
-/* ============================================================
-    渲染表格行
-    ============================================================= */
+
+    // 渲染表格行
     pageData.forEach(o => {
         const tr = document.createElement("tr");
 
@@ -216,9 +222,7 @@ if (newSize && newSize !== PaginationManager.pageSize) {
 
     renderStats(data);
 
-    /* ============================================================
-    ★ 分页组件必须使用最新的 pageSize
-    ============================================================= */
+    // ★ 分页组件必须使用最新的 pageSize 和 currentPage
     PaginationManager.renderPager(total);
 }
 

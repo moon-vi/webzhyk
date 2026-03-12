@@ -249,41 +249,37 @@ async function toggleEnable(jobId) {
 function renderAccounts() {
     const tbody = document.querySelector("#accountTable tbody");
 
-    /* ------------------------------------------------------------
-       ★★★★★ 第一次渲染时 tbody 是空的 → 插入一行假数据用于测量行高
-       ------------------------------------------------------------ */
+    // ★ 第一次渲染时插入假行用于测量行高
     if (tbody.children.length === 0) {
         tbody.innerHTML = `
             <tr><td style="height:40px; padding:0; margin:0;" colspan="20"></td></tr>
         `;
     }
 
-    /* ------------------------------------------------------------
-       ★★★★★ 现在 calcPageSize() 一定能测到正确行高
-       ------------------------------------------------------------ */
+    // ★ 动态计算 pageSize（关键：重置 currentPage）
     const newSize = calcPageSize();
     if (newSize && newSize !== PaginationManager.pageSize) {
         PaginationManager.pageSize = newSize;
-        PaginationManager.currentPage = 1;
+        PaginationManager.currentPage = 1;   // ★ 必须加
     }
 
-    // 清空假数据
+    // 清空假行
     tbody.innerHTML = "";
 
-    /* ------------------------------------------------------------
-       数据过滤 + 排序
-       ------------------------------------------------------------ */
+    // 数据过滤
     const list = filteredList.length ? filteredList : allAccounts;
     const total = list.length;
 
-    /* ------------------------------------------------------------
-       ★ 使用 PaginationManager 统一分页
-       ------------------------------------------------------------ */
+    // ★ 关键：过滤后检查 currentPage 是否越界
+    const maxPage = Math.ceil(total / PaginationManager.pageSize) || 1;
+    if (PaginationManager.currentPage > maxPage) {
+        PaginationManager.currentPage = 1;   // ★ 必须加
+    }
+
+    // 分页切片
     const pageList = PaginationManager.slice(list);
 
-    /* ------------------------------------------------------------
-       渲染表格
-       ------------------------------------------------------------ */
+    // 渲染表格
     tbody.innerHTML = pageList.map(acc => `
         <tr>
             <td>${acc.jobId}</td>
@@ -309,14 +305,10 @@ function renderAccounts() {
         </tr>
     `).join("");
 
-    /* ------------------------------------------------------------
-       统计卡片
-       ------------------------------------------------------------ */
+    // 统计卡片
     updateStats(list);
 
-    /* ------------------------------------------------------------
-       ★ 渲染分页组件（统一走 PaginationManager）
-       ------------------------------------------------------------ */
+    // ★ 分页组件
     PaginationManager.renderPager(total);
 }
 
