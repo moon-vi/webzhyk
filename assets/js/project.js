@@ -93,7 +93,18 @@ async function loadOrdersFromSupabase() {
         completed: o.completed
     }));
 
+    // 第一次先按默认 pageSize 渲染一遍，让真实行出现在 DOM 里
     render();
+
+    // 然后用真实行高算 pageSize，再重渲染一次
+    setTimeout(() => {
+        const newSize = calcPageSize();
+        if (newSize && newSize !== PaginationManager.pageSize) {
+            PaginationManager.pageSize = newSize;
+            PaginationManager.currentPage = 1;
+            render();
+        }
+    }, 0);
 }
 
 /* ============================================================
@@ -118,22 +129,6 @@ async function loadAccounts() {
 function render() {
 
     const tbody = document.querySelector("#dataTable tbody");
-
-    // ★ 第一次渲染时插入假行用于测量行高
-    if (tbody.children.length === 0) {
-        tbody.innerHTML = `
-            <tr><td style="height:40px; padding:0; margin:0;" colspan="20"></td></tr>
-        `;
-    }
-
-    // ★ 动态计算 pageSize（关键：重置 currentPage）
-    const newSize = calcPageSize();
-    if (newSize && newSize !== PaginationManager.pageSize) {
-        PaginationManager.pageSize = newSize;
-        PaginationManager.currentPage = 1;   // ★ 必须放这里
-    }
-
-    // 清空假行
     tbody.innerHTML = "";
 
     // 搜索过滤
@@ -650,14 +645,14 @@ function closeBackupManager() { Modal.close("backupModal"); }
 初始化：加载订单 + 加载人员 + 搜索绑定 + 权限处理
 ============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
-
     await loadAccounts();
-    await loadOrdersFromSupabase();
 
     PaginationManager.attach({
         tableSelector: ".table-scroll",
         renderCallback: render
     });
+
+    await loadOrdersFromSupabase();
 
     const kw = document.getElementById("keyword");
     if (kw) {
@@ -667,6 +662,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
     }
 });
+
 /* ============================================================
 初始化订单系统的智能下拉（客户经理 / 顾问 / 编导）
 ============================================================ */

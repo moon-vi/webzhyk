@@ -320,128 +320,6 @@ const Backup = {
         }
     });
 })();
-
-/* ============================================================
-8. Pagination（统一分页组件）
-============================================================ */
-const Pagination = {
-    currentPage: 1,   // 全局统一当前页
-    pageSize: 16,     // 全局统一每页条数
-
-    render({ el, total, pageSize, currentPage, onChange }) {
-        const container =
-            typeof el === "string" ? document.querySelector(el) : el;
-        if (!container) return;
-
-        const totalPages = Math.max(1, Math.ceil(total / pageSize));
-        const current = Math.min(Math.max(1, currentPage), totalPages);
-        const windowSize = 16;
-
-        container.innerHTML = "";
-
-        const addBtn = (label, page, disabled = false, isEllipsis = false) => {
-            const btn = document.createElement("button");
-            btn.textContent = label;
-
-            if (isEllipsis) {
-                btn.disabled = true;
-                btn.style.cursor = "default";
-            }
-
-            if (disabled) btn.disabled = true;
-            if (page === current) btn.classList.add("active");
-
-            if (!disabled && !isEllipsis && typeof page === "number") {
-                btn.addEventListener("click", () => onChange(page));
-            }
-
-            container.appendChild(btn);
-        };
-
-        // 首页 / 上一页
-        addBtn("首页", 1, current === 1);
-        addBtn("上一页", current - 1, current === 1);
-
-        // 窗口页码
-        let half = Math.floor(windowSize / 2);
-        let start = current - half;
-        let end = current + half;
-
-        if (start < 1) {
-            end += (1 - start);
-            start = 1;
-        }
-
-        if (end > totalPages) {
-            start -= (end - totalPages);
-            end = totalPages;
-        }
-
-        if (start < 1) start = 1;
-
-        if (start > 1) {
-            addBtn(1, 1);
-            if (start > 2) addBtn("…", null, true, true);
-        }
-
-        for (let i = start; i <= end; i++) {
-            addBtn(i, i);
-        }
-
-        if (end < totalPages) {
-            if (end < totalPages - 1) addBtn("…", null, true, true);
-            addBtn(totalPages, totalPages);
-        }
-
-        // 下一页 / 尾页
-        addBtn("下一页", current + 1, current === totalPages);
-        addBtn("尾页", totalPages, current === totalPages);
-
-        // 输入跳转
-        const jumpInput = document.createElement("input");
-        jumpInput.type = "number";
-        jumpInput.min = 1;
-        jumpInput.max = totalPages;
-        jumpInput.placeholder = "跳转";
-        jumpInput.className = "btn btn-gray btn-small";
-        jumpInput.style.width = "auto";
-        jumpInput.style.padding = "0 10px";
-        jumpInput.style.height = "28px";
-        jumpInput.style.lineHeight = "28px";
-        jumpInput.style.marginLeft = "10px";
-        jumpInput.style.textAlign = "center";
-        jumpInput.style.boxSizing = "border-box";
-        jumpInput.style.minWidth = "45px";
-
-        jumpInput.addEventListener("keydown", e => {
-            if (e.key === "Enter") {
-                let p = Number(jumpInput.value);
-                if (!p || p < 1) return;
-                if (p > totalPages) p = totalPages;
-                onChange(p);
-            }
-        });
-
-        container.appendChild(jumpInput);
-    }
-};
-
-window.Pagination = Pagination;
-
-/* ============================================================
-9. Pager（供 project.js / finance.js 调用）
-============================================================ */
-const Pager = {
-    render(el, total, pageSize, currentPage, onChange) {
-        Pagination.render({
-            el,
-            total,
-            pageSize,
-            currentPage,
-            onChange
-        });
-    }
-};
 		
 /* ============================================================
 10. ExcelUtil（供 project.js / finance.js 调用）
@@ -1079,74 +957,154 @@ function calcPageSize() {
 }
 
 /* ============================================================
-通用分页管理器 PaginationManager
+统一分页系统（最终版PaginationManager）
 ============================================================ */
 const PaginationManager = {
-    pageSize: 10,
     currentPage: 1,
+    pageSize: 16,
     tableSelector: "",
     renderCallback: null,
 
-    /* 绑定表格容器 + 渲染函数 */
     attach({ tableSelector, renderCallback }) {
         this.tableSelector = tableSelector;
         this.renderCallback = renderCallback;
 
-        // 初始化时计算一次
-        this.updatePageSize();
-
-        // 监听窗口变化
         window.addEventListener("resize", () => {
             this.updatePageSize();
             this.render();
         });
     },
 
-    /* 计算 pageSize */
     updatePageSize() {
-    const scroll = document.querySelector(this.tableSelector);
-    if (!scroll) return;
+        const scroll = document.querySelector(this.tableSelector);
+        if (!scroll) return;
 
-    const tbody = scroll.querySelector("tbody");
-    if (!tbody) return;
+        const tbody = scroll.querySelector("tbody");
+        if (!tbody) return;
 
-    const firstRow = tbody.querySelector("tr");
-    if (!firstRow) return;
+        const firstRow = tbody.querySelector("tr");
+        if (!firstRow) return;
 
-    const rowHeight = firstRow.getBoundingClientRect().height;
-    if (!rowHeight || rowHeight < 5) return;
+        const rowHeight = firstRow.getBoundingClientRect().height;
+        if (!rowHeight || rowHeight < 5) return;
 
-    // ★ 同样预留一点底部空间
-    const bottomFix = 10;
-    const scrollHeight = scroll.clientHeight - bottomFix;
+        const bottomFix = 10;
+        const scrollHeight = scroll.clientHeight - bottomFix;
 
-    const newSize = Math.max(1, Math.floor(scrollHeight / rowHeight));
+        const newSize = Math.max(1, Math.floor(scrollHeight / rowHeight));
 
-    if (newSize !== this.pageSize) {
-        this.pageSize = newSize;
-        this.currentPage = 1;
-    }
-},
+        if (newSize !== this.pageSize) {
+            this.pageSize = newSize;
+            this.currentPage = 1;
+        }
+    },
 
-
-    /* 分页切片 */
     slice(data) {
         const start = (this.currentPage - 1) * this.pageSize;
         return data.slice(start, start + this.pageSize);
     },
 
-    /* 渲染分页组件 */
     renderPager(total) {
-        Pager.render("#pagination", total, this.pageSize, this.currentPage, p => {
-            this.currentPage = p;
-            this.render();
+        const container = document.querySelector("#pagination");
+        if (!container) return;
+
+        const totalPages = Math.max(1, Math.ceil(total / this.pageSize));
+        const current = Math.min(Math.max(1, this.currentPage), totalPages);
+        const windowSize = 16;
+
+        container.innerHTML = "";
+
+        const addBtn = (label, page, disabled = false, isEllipsis = false) => {
+            const btn = document.createElement("button");
+            btn.textContent = label;
+
+            if (isEllipsis) {
+                btn.disabled = true;
+                btn.style.cursor = "default";
+            }
+
+            if (disabled) btn.disabled = true;
+            if (page === current) btn.classList.add("active");
+
+            if (!disabled && !isEllipsis && typeof page === "number") {
+                btn.addEventListener("click", () => {
+                    this.currentPage = page;
+                    this.render();
+                });
+            }
+
+            container.appendChild(btn);
+        };
+
+        addBtn("首页", 1, current === 1);
+        addBtn("上一页", current - 1, current === 1);
+
+        let half = Math.floor(windowSize / 2);
+        let start = current - half;
+        let end = current + half;
+
+        if (start < 1) {
+            end += (1 - start);
+            start = 1;
+        }
+
+        if (end > totalPages) {
+            start -= (end - totalPages);
+            end = totalPages;
+        }
+
+        if (start < 1) start = 1;
+
+        if (start > 1) {
+            addBtn(1, 1);
+            if (start > 2) addBtn("…", null, true, true);
+        }
+
+        for (let i = start; i <= end; i++) {
+            addBtn(i, i);
+        }
+
+        if (end < totalPages) {
+            if (end < totalPages - 1) addBtn("…", null, true, true);
+            addBtn(totalPages, totalPages);
+        }
+
+        addBtn("下一页", current + 1, current === totalPages);
+        addBtn("尾页", totalPages, current === totalPages);
+
+        const jumpInput = document.createElement("input");
+        jumpInput.type = "number";
+        jumpInput.min = 1;
+        jumpInput.max = totalPages;
+        jumpInput.placeholder = "跳转";
+        jumpInput.className = "btn btn-gray btn-small";
+        jumpInput.style.width = "auto";
+        jumpInput.style.padding = "0 10px";
+        jumpInput.style.height = "28px";
+        jumpInput.style.lineHeight = "28px";
+        jumpInput.style.marginLeft = "10px";
+        jumpInput.style.textAlign = "center";
+        jumpInput.style.boxSizing = "border-box";
+        jumpInput.style.minWidth = "45px";
+
+        jumpInput.addEventListener("keydown", e => {
+            if (e.key === "Enter") {
+                let p = Number(jumpInput.value);
+                if (!p || p < 1) return;
+                if (p > totalPages) p = totalPages;
+                this.currentPage = p;
+                this.render();
+            }
         });
+
+        container.appendChild(jumpInput);
     },
 
-    /* 统一渲染入口 */
     render() {
         if (typeof this.renderCallback === "function") {
             this.renderCallback();
         }
     }
 };
+
+window.PaginationManager = PaginationManager;
