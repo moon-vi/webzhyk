@@ -457,7 +457,7 @@ function toggleTheme(event) {
 ============================================================ */
 async function recordLoginLog(user) {
     const supabaseUrl = "https://kqurjkbsvyfslqibggtc.supabase.co";
-    const anonKey = "你的真实 anon key"; // ★ 必须替换成真实 anon key
+    const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo"; // ★ 必须替换成真实 anon key
 
     // 获取 IP（失败不影响）
     let ip = "unknown";
