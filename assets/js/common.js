@@ -455,42 +455,34 @@ function toggleTheme(event) {
 /* ============================================================
 12. 登录日志记录（时间、IP、设备）——Supabase REST + keepalive
 ============================================================ */
-async function recordLoginLog(user) {
+function recordLoginLog(user) {
     const supabaseUrl = "https://kqurjkbsvyfslqibggtc.supabase.co";
-    const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo"; // ★ 必须替换成真实 anon key
+    const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo";
 
-    // 获取 IP（失败不影响）
-    let ip = "unknown";
-    try {
-        const res = await fetch("https://api.ipify.org?format=json");
-        const data = await res.json();
-        ip = data.ip || "unknown";
-    } catch {}
+    // 获取 IP（异步，不阻塞）
+    fetch("https://api.ipify.org?format=json")
+        .then(res => res.json())
+        .then(data => {
+            const ip = data.ip || "unknown";
 
-    const logItem = {
-        time: new Date().toLocaleString(),
-        username: user.phone || "",
-        display_name: user.name || "",
-        role: user.role || "",
-        ip,
-        ua: navigator.userAgent
-    };
+            const logItem = {
+                time: new Date().toLocaleString(),
+                username: user.phone || "",
+                display_name: user.name || "",
+                role: user.role || "",
+                ip,
+                ua: navigator.userAgent
+            };
 
-    // ★ 使用 fetch + keepalive，不阻塞跳转，且能带 headers
-    fetch(`${supabaseUrl}/rest/v1/account_logs`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "apikey": anonKey,
-            "Authorization": `Bearer ${anonKey}`,
-            "Prefer": "return=minimal"
-        },
-        body: JSON.stringify(logItem),
-        keepalive: true
-    });
+            const blob = new Blob([JSON.stringify(logItem)], {
+                type: "application/json"
+            });
 
-    // ★ 写入后自动清理旧日志（最多保留 50 条）
-    cleanupOldLogs();
+            navigator.sendBeacon(
+                `${supabaseUrl}/rest/v1/account_logs?apikey=${anonKey}`,
+                blob
+            );
+        });
 }
 
 /* ============================================================
@@ -565,11 +557,11 @@ window.login = async function () {
         };
         sessionStorage.setItem("sessionUser", JSON.stringify(sessionUser));
 
-        // 4. 跳转入口页
-        window.location.href = "index.html";
-
-        // 5. 登录日志（异步，不阻塞跳转）
+        // 4. 登录日志（异步，不阻塞跳转）
         recordLoginLog(sessionUser);
+
+        // 5. 跳转入口页
+        window.location.href = "index.html";
 
     } catch (e) {
         console.error("登录异常：", e);
