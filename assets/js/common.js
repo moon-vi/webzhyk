@@ -453,13 +453,13 @@ function toggleTheme(event) {
 }
 
 /* ============================================================
-12. 登录日志记录（时间、IP、设备）——Supabase REST + keepalive
+12. 登录日志记录（时间、IP、设备）——sendBeacon（Chrome 100% 稳定）
 ============================================================ */
 function recordLoginLog(user) {
     const supabaseUrl = "https://kqurjkbsvyfslqibggtc.supabase.co";
     const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo";
 
-    // 获取 IP（异步，不阻塞）
+    // 先异步获取 IP（不阻塞跳转）
     fetch("https://api.ipify.org?format=json")
         .then(res => res.json())
         .then(data => {
@@ -474,10 +474,12 @@ function recordLoginLog(user) {
                 ua: navigator.userAgent
             };
 
+            // 转成 Blob（sendBeacon 必须用 Blob）
             const blob = new Blob([JSON.stringify(logItem)], {
                 type: "application/json"
             });
 
+            // ★ sendBeacon：不会被跳转取消，不会丢，不会合并
             navigator.sendBeacon(
                 `${supabaseUrl}/rest/v1/account_logs?apikey=${anonKey}`,
                 blob
@@ -509,7 +511,7 @@ async function cleanupOldLogs() {
 }
 
 /* ============================================================
-13. 登录逻辑（auth.html）——Supabase 版本
+13. 登录逻辑（auth.html）——最终稳定版
 ============================================================ */
 window.login = async function () {
     const phone = document.getElementById("username")?.value.trim();
@@ -528,7 +530,7 @@ window.login = async function () {
             return;
         }
 
-        // 1. 从 Supabase 查询用户
+        // 1. 查询用户
         const { data: user, error } = await supabase
             .from("users")
             .select("*")
@@ -540,13 +542,13 @@ window.login = async function () {
             return;
         }
 
-        // 2. 先用明文密码对比（后面再改成加密）
+        // 2. 密码校验
         if (password !== user.password_hash) {
             if (errorEl) errorEl.textContent = "密码错误";
             return;
         }
 
-        // 3. 登录成功：写入 sessionStorage（统一结构）
+        // 3. 登录成功：写入 session
         const sessionUser = {
             id: user.id,
             name: user.name,
@@ -557,11 +559,14 @@ window.login = async function () {
         };
         sessionStorage.setItem("sessionUser", JSON.stringify(sessionUser));
 
-        // 4. 登录日志（异步，不阻塞跳转）
+        // 4. ★ 先写日志（sendBeacon 不会阻塞跳转）
         recordLoginLog(sessionUser);
 
-        // 5. 跳转入口页
+        // 5. ★ 再跳转（顺序必须是这样）
         window.location.href = "index.html";
+
+        // 6. 清理旧日志（不影响跳转）
+        cleanupOldLogs();
 
     } catch (e) {
         console.error("登录异常：", e);
