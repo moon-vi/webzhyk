@@ -453,38 +453,44 @@ function toggleTheme(event) {
 }
 
 /* ============================================================
-12. 登录日志记录（时间、IP、设备）——sendBeacon（Chrome 100% 稳定）
+12. 登录日志记录（时间、IP、设备）——Supabase REST + keepalive（原始版本）
 ============================================================ */
-function recordLoginLog(user) {
+async function recordLoginLog(user) {
     const supabaseUrl = "https://kqurjkbsvyfslqibggtc.supabase.co";
     const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo";
 
-    // 先异步获取 IP（不阻塞跳转）
-    fetch("https://api.ipify.org?format=json")
-        .then(res => res.json())
-        .then(data => {
-            const ip = data.ip || "unknown";
+    // 获取 IP（失败不影响）
+    let ip = "unknown";
+    try {
+        const res = await fetch("https://api.ipify.org?format=json");
+        const data = await res.json();
+        ip = data.ip || "unknown";
+    } catch {}
 
-            const logItem = {
-                time: new Date().toLocaleString(),
-                username: user.phone || "",
-                display_name: user.name || "",
-                role: user.role || "",
-                ip,
-                ua: navigator.userAgent
-            };
+    const logItem = {
+        time: new Date().toLocaleString(),
+        username: user.phone || "",
+        display_name: user.name || "",
+        role: user.role || "",
+        ip,
+        ua: navigator.userAgent
+    };
 
-            // 转成 Blob（sendBeacon 必须用 Blob）
-            const blob = new Blob([JSON.stringify(logItem)], {
-                type: "application/json"
-            });
+    // ★ 使用 fetch + keepalive，不阻塞跳转，且能带 headers
+    fetch(`${supabaseUrl}/rest/v1/account_logs`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "apikey": anonKey,
+            "Authorization": `Bearer ${anonKey}`,
+            "Prefer": "return=minimal"
+        },
+        body: JSON.stringify(logItem),
+        keepalive: true
+    });
 
-            // ★ sendBeacon：不会被跳转取消，不会丢，不会合并
-            navigator.sendBeacon(
-                `${supabaseUrl}/rest/v1/account_logs?apikey=${anonKey}`,
-                blob
-            );
-        });
+    // ★ 写入后自动清理旧日志（最多保留 50 条）
+    cleanupOldLogs();
 }
 
 /* ============================================================
@@ -511,7 +517,7 @@ async function cleanupOldLogs() {
 }
 
 /* ============================================================
-13. 登录逻辑（auth.html）——最终稳定版
+13. 登录逻辑（auth.html）——Supabase 版本（原始顺序）
 ============================================================ */
 window.login = async function () {
     const phone = document.getElementById("username")?.value.trim();
@@ -530,7 +536,7 @@ window.login = async function () {
             return;
         }
 
-        // 1. 查询用户
+        // 1. 从 Supabase 查询用户
         const { data: user, error } = await supabase
             .from("users")
             .select("*")
@@ -542,13 +548,13 @@ window.login = async function () {
             return;
         }
 
-        // 2. 密码校验
+        // 2. 先用明文密码对比（后面再改成加密）
         if (password !== user.password_hash) {
             if (errorEl) errorEl.textContent = "密码错误";
             return;
         }
 
-        // 3. 登录成功：写入 session
+        // 3. 登录成功：写入 sessionStorage（统一结构）
         const sessionUser = {
             id: user.id,
             name: user.name,
@@ -559,28 +565,17 @@ window.login = async function () {
         };
         sessionStorage.setItem("sessionUser", JSON.stringify(sessionUser));
 
-        // 4. ★ 先写日志（sendBeacon 不会阻塞跳转）
-        recordLoginLog(sessionUser);
-
-        // 5. ★ 再跳转（顺序必须是这样）
+        // 4. 跳转入口页（原来就是这样）
         window.location.href = "index.html";
 
-        // 6. 清理旧日志（不影响跳转）
-        cleanupOldLogs();
+        // 5. 登录日志（异步，不阻塞跳转）
+        recordLoginLog(sessionUser);
 
     } catch (e) {
         console.error("登录异常：", e);
         if (errorEl) errorEl.textContent = "登录失败，请查看控制台错误";
     }
 };
-
-// 回车触发登录
-document.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") {
-        const loginBtn = document.querySelector(".auth-btn");
-        if (loginBtn) login();
-    }
-});
 
 /* ============================================================
 14. 顶部栏用户信息（所有有 topBar 的页面通用）
