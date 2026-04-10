@@ -119,6 +119,9 @@ async function addAccount() {
         return;
     }
 
+    // ★ 写入操作日志
+    await recordActionLog(`新增账号：${name}（${phone}）`);
+
     closeAddModal();
     await loadAccountsFromSupabase();
 }
@@ -185,6 +188,9 @@ async function saveAccountEdit() {
         return;
     }
 
+    // ★ 写入操作日志
+    await recordActionLog(`编辑账号：${name}（${phone}）`);
+
     closeEditModal();
     await loadAccountsFromSupabase();
 }
@@ -192,11 +198,6 @@ async function saveAccountEdit() {
 /* ============================================================
 五、删除账号
 ============================================================ */
-function confirmDelete(jobId) {
-    deleteTarget = jobId;
-    Modal.open("deleteModal");
-}
-
 async function deleteAccount() {
     if (!deleteTarget) return;
 
@@ -212,6 +213,9 @@ async function deleteAccount() {
         alert("删除失败，请检查控制台");
         return;
     }
+
+    // ★ 写入操作日志
+    await recordActionLog(`删除账号：工号 ${deleteTarget}`);
 
     deleteTarget = null;
     closeDeleteModal();
@@ -234,13 +238,16 @@ async function toggleEnable(jobId) {
         .eq("job_no", jobId);
 
     if (error) {
-        console.error("更新启用状态失败：", error);
-        alert("更新启用状态失败，请检查控制台");
-        return;
-    }
+    console.error("更新启用状态失败：", error);
+    alert("更新启用状态失败，请检查控制台");
+    return;
+}
 
-    acc.enabled = newEnabled;
-    searchAccounts();
+// ★ 写入操作日志
+await recordActionLog(`${newEnabled ? "启用" : "禁用"}账号：工号 ${jobId}`);
+
+acc.enabled = newEnabled;
+searchAccounts();
 }
 
 /* ============================================================
@@ -366,8 +373,8 @@ function renderLogTable() {
             <td>${log.username}</td>
             <td>${log.display_name}</td>
             <td>${log.role}</td>
-            <td>${log.ip}</td>
-            <td>${log.ua}</td>
+            <td>${log.device || ""}</td>
+            <td>${log.action || ""}</td>
         </tr>
     `).join("");
 }

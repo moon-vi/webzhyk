@@ -214,7 +214,7 @@ async function loadProjectNamesFromSupabase() {
 }
 
 /* ============================================================
-四、状态机 + 日志
+四、状态机 + 日志（最终整合版）
 ============================================================ */
 
 function getState(r) {
@@ -237,8 +237,13 @@ function addLog(record, action) {
     });
 }
 
+// ★ 系统日志（写入 account_logs）
+async function recordFinanceLog(text) {
+    await recordActionLog(text);
+}
+
 /* ============================================================
-审核 / 拒绝 / 完成
+审核 / 拒绝 / 完成（含系统日志）
 ============================================================ */
 
 async function doRejectAction(module, index) {
@@ -257,9 +262,17 @@ async function doRejectAction(module, index) {
     if (state === "未审") {
         record.auditStatus = "拒绝";
         addLog(record, "拒绝");
+
+        // ★ 系统日志
+        await recordFinanceLog(`拒绝财务记录：ID ${r.id}`);
+
     } else if (state === "拒绝") {
         record.auditStatus = "未审";
         addLog(record, "取消拒绝");
+
+        // ★ 系统日志
+        await recordFinanceLog(`取消拒绝财务记录：ID ${r.id}`);
+
     } else {
         return;
     }
@@ -295,9 +308,13 @@ async function doApproveAction(module, index) {
     const supabase = window.supabaseClient;
     const record = { ...r, logs: r.logs || [] };
 
+    // ★ 审核通过
     if (state === "未审" || state === "拒绝") {
         record.auditStatus = "已审";
         addLog(record, "审核通过");
+
+        // ★ 系统日志
+        await recordFinanceLog(`审核财务记录：ID ${r.id}`);
 
         const { error } = await supabase
             .from(table)
@@ -318,6 +335,7 @@ async function doApproveAction(module, index) {
         return;
     }
 
+    // ★ 取消审核
     if (state === "已审") {
         Confirm.open({
             modalId: "confirmModal",
@@ -326,6 +344,9 @@ async function doApproveAction(module, index) {
             async onConfirm() {
                 record.auditStatus = "未审";
                 addLog(record, "取消审核");
+
+                // ★ 系统日志
+                await recordFinanceLog(`取消审核财务记录：ID ${r.id}`);
 
                 const { error } = await supabase
                     .from(table)
@@ -361,9 +382,13 @@ async function doFinishAction(module, index) {
     const supabase = window.supabaseClient;
     const record = { ...r, logs: r.logs || [] };
 
+    // ★ 完成发放
     if (state === "已审") {
         record.cashierStatus = "已发";
         addLog(record, "完成发放");
+
+        // ★ 系统日志
+        await recordFinanceLog(`完成发放财务记录：ID ${r.id}`);
 
         const { error } = await supabase
             .from(table)
@@ -384,6 +409,7 @@ async function doFinishAction(module, index) {
         return;
     }
 
+    // ★ 取消完成
     if (state === "已发") {
         Confirm.open({
             modalId: "confirmModal",
@@ -393,6 +419,9 @@ async function doFinishAction(module, index) {
                 record.cashierStatus = "未发";
                 record.auditStatus = "已审";
                 addLog(record, "取消完成");
+
+                // ★ 系统日志
+                await recordFinanceLog(`取消完成财务记录：ID ${r.id}`);
 
                 const { error } = await supabase
                     .from(table)
@@ -681,6 +710,9 @@ function renderLogs(logs) {
 function openDetail(module, index) {
     const r = getListByModule(module)[index];
 
+    // ★ 写入系统日志
+    recordFinanceLog(`查看财务记录：ID ${r.id}`);
+
     if (module === "daily") {
         document.getElementById("v_d_status").innerText   = r.auditStatus || "未审";
         document.getElementById("v_d_cashier").innerText  = r.cashierStatus || "未发";
@@ -781,15 +813,18 @@ async function confirmFinanceDelete() {
     const supabase = window.supabaseClient;
 
     const { error } = await supabase
-        .from(table)
-        .delete()
-        .eq("id", r.id);
+    .from(table)
+    .delete()
+    .eq("id", r.id);
 
-    if (error) {
-        console.error("删除失败", error);
-        alert("删除失败，请检查表结构或网络");
-        return;
-    }
+if (error) {
+    console.error("删除失败", error);
+    alert("删除失败，请检查表结构或网络");
+    return;
+}
+
+// ★ 写入系统日志
+await recordFinanceLog(`删除财务记录：ID ${r.id}`);
 
     closeFinanceDelete();
     await loadFinanceData();
@@ -861,6 +896,13 @@ async function saveDaily() {
     };
 
     addLog(record, isEdit ? "编辑保存" : "新增记录");
+
+// ★ 写入系统日志
+if (isEdit) {
+    await recordFinanceLog(`编辑报销：ID ${old.id}`);
+} else {
+    await recordFinanceLog(`新增报销：${record.project}（金额：${record.amount}）`);
+}
 
     if (isEdit) {
         const { error } = await supabase
@@ -987,6 +1029,13 @@ async function savePayroll() {
     };
 
     addLog(record, isEdit ? "编辑保存" : "新增记录");
+
+// ★ 写入系统日志
+if (isEdit) {
+    await recordFinanceLog(`编辑工资：ID ${old.id}`);
+} else {
+    await recordFinanceLog(`新增工资：${record.name}（月份：${record.month}）`);
+}
 
     if (isEdit) {
         const { error } = await supabase
@@ -1192,6 +1241,13 @@ async function saveProject() {
     };
 
     addLog(record, isEdit ? "编辑保存" : "新增记录");
+
+// ★ 写入系统日志
+if (isEdit) {
+    await recordFinanceLog(`编辑项目支出：ID ${old.id}`);
+} else {
+    await recordFinanceLog(`新增项目支出：${record.project}（金额：${record.amount}）`);
+}
 
     if (isEdit) {
         const { error } = await supabase

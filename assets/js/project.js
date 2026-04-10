@@ -7,6 +7,11 @@ let accountList = [];
 let editOrderId = null;
 let completeOrderId = null;
 
+// ★ 系统日志（写入 account_logs）
+async function recordOrderLog(text) {
+    await recordActionLog(text); // 直接复用 common.js 的系统日志函数
+}
+
 /* ============================================================
 日志记录
 ============================================================ */
@@ -326,6 +331,9 @@ async function saveOrder() {
     if (!editOrderId) {
         addLog(o, "新增订单");
 
+// ★ 写入系统日志
+await recordOrderLog(`新增订单：${o.name}（客户：${o.customer}）`);
+
         const { error } = await supabase.from("orders").insert({
             start_date: o.startDate,
             unit: o.unit,
@@ -358,6 +366,9 @@ async function saveOrder() {
         const old = orders.find(x => x.id === editOrderId);
         o.logs = old.logs || [];
         addLog(o, "编辑订单");
+
+// ★ 写入系统日志
+await recordOrderLog(`编辑订单：ID ${editOrderId}`);
 
         const { error } = await supabase
             .from("orders")
@@ -394,6 +405,9 @@ async function saveOrder() {
 查看详情
 ============================================================ */
 function view(orderId) {
+    // ★ 写入系统日志
+    recordOrderLog(`查看订单：ID ${orderId}`);
+
     const o = orders.find(x => x.id === orderId);
     if (!o) return;
 
@@ -420,6 +434,9 @@ function removeOrder(orderId) {
         text: `确定删除订单：${o.name}?`,
         onConfirm: async () => {
             addLog(o, "删除订单");
+
+// ★ 写入系统日志
+await recordOrderLog(`删除订单：ID ${orderId}`);
 
             const supabase = window.supabaseClient;
             const { error } = await supabase
@@ -461,7 +478,13 @@ async function confirmComplete() {
     if (!o) return;
 
     if (o.completed) addLog(o, "取消完成");
-    else addLog(o, "标记为完成");
+else addLog(o, "标记为完成");
+
+// ★ 写入系统日志
+if (o.completed)
+    await recordOrderLog(`取消完成订单：ID ${completeOrderId}`);
+else
+    await recordOrderLog(`完成订单：ID ${completeOrderId}`);
 
     const supabase = window.supabaseClient;
 

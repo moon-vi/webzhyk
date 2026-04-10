@@ -453,30 +453,26 @@ function toggleTheme(event) {
 }
 
 /* ============================================================
-12. 登录日志记录（时间、IP、设备）——Supabase REST + keepalive（原始版本）
+12. 登录日志记录（时间、设备、操作）——Supabase REST + keepalive
 ============================================================ */
 async function recordLoginLog(user) {
     const supabaseUrl = "https://kqurjkbsvyfslqibggtc.supabase.co";
     const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdXJqa2Jzdnlmc2xxaWJnZ3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Njc4OTQsImV4cCI6MjA4NDU0Mzg5NH0.ShKap1_rIzodt6wwUHSBrzqORjJdVB3zRw3Pl9uXCIo";
 
-    // 获取 IP（失败不影响）
-    let ip = "unknown";
-    try {
-        const res = await fetch("https://api.ipify.org?format=json");
-        const data = await res.json();
-        ip = data.ip || "unknown";
-    } catch {}
+    // 简化设备信息
+    const ua = navigator.userAgent.toLowerCase();
+    const device = ua.includes("mobile") ? "Mobile" : "PC";
 
     const logItem = {
         time: new Date().toLocaleString(),
         username: user.phone || "",
         display_name: user.name || "",
         role: user.role || "",
-        ip,
-        ua: navigator.userAgent
+        device: device,          // ★ 设备信息（PC / Mobile）
+        action: "登录系统"       // ★ 操作记录
     };
 
-    // ★ 使用 fetch + keepalive，不阻塞跳转，且能带 headers
+    // 使用 fetch + keepalive，不阻塞跳转，且能带 headers
     fetch(`${supabaseUrl}/rest/v1/account_logs`, {
         method: "POST",
         headers: {
@@ -489,7 +485,7 @@ async function recordLoginLog(user) {
         keepalive: true
     });
 
-    // ★ 写入后自动清理旧日志（最多保留 50 条）
+    // 写入后自动清理旧日志（最多保留 50 条）
     cleanupOldLogs();
 }
 
@@ -506,9 +502,9 @@ async function cleanupOldLogs() {
 
     if (error || !data) return;
 
-    if (data.length <= 50) return;
+    if (data.length <= 200) return;
 
-    const idsToDelete = data.slice(50).map(row => row.id);
+    const idsToDelete = data.slice(200).map(row => row.id);
 
     await supabase
         .from("account_logs")
@@ -517,7 +513,32 @@ async function cleanupOldLogs() {
 }
 
 /* ============================================================
-13. 登录逻辑（auth.html）——Supabase 版本（原始顺序）
+12.2 通用操作日志（人员 / 订单 / 财务）
+============================================================ */
+async function recordActionLog(actionText) {
+    const supabase = window.supabaseClient;
+    const sessionUser = JSON.parse(sessionStorage.getItem("sessionUser") || "null");
+    if (!sessionUser) return;
+
+    const ua = navigator.userAgent.toLowerCase();
+    const device = ua.includes("mobile") ? "Mobile" : "PC";
+
+    const logItem = {
+        time: new Date().toLocaleString(),
+        username: sessionUser.phone || "",
+        display_name: sessionUser.name || "",
+        role: sessionUser.role || "",
+        device: device,          // ★ 设备信息（PC / Mobile）
+        action: actionText       // ★ 操作记录（传进来的文案）
+    };
+
+    await supabase
+        .from("account_logs")
+        .insert(logItem);
+}
+
+/* ============================================================
+13. 登录逻辑（auth.html）——Supabase 版本（保持原样）
 ============================================================ */
 window.login = async function () {
     const phone = document.getElementById("username")?.value.trim();
@@ -565,7 +586,7 @@ window.login = async function () {
         };
         sessionStorage.setItem("sessionUser", JSON.stringify(sessionUser));
 
-        // 4. 跳转入口页（原来就是这样）
+        // 4. 跳转入口页（保持原样）
         window.location.href = "index.html";
 
         // 5. 登录日志（异步，不阻塞跳转）
