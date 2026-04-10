@@ -1045,3 +1045,40 @@ html.dark-mode #pagination {
     width: 100%;
     table-layout: fixed;
 }
+
+/* 仅作用于系统日志弹窗 */
+#logModal .table-scroll table {
+    table-layout: fixed; /* 关键：启用固定布局，百分比才生效 */
+    width: 100%;
+}
+
+/* 列宽百分比设置 */
+#logModal th:nth-child(1),
+#logModal td:nth-child(1) { width: 20%; }
+
+#logModal th:nth-child(2),
+#logModal td:nth-child(2) { width: 15%; }
+
+#logModal th:nth-child(3),
+#logModal td:nth-child(3) { width: 10%; }
+
+#logModal th:nth-child(4),
+#logModal td:nth-child(4) { width: 10%; }
+
+#logModal th:nth-child(5),
+#logModal td:nth-child(5) { width: 10%; }
+
+#logModal th:nth-child(6),
+#logModal td:nth-child(6) { width: 35%; }
+
+/* 所有列保持单行显示 */
+#logModal td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 表头也保持单行 */
+#logModal th {
+    white-space: nowrap;
+}
