@@ -79,7 +79,7 @@ async function loadOrdersFromSupabase() {
     }
 
     orders = data.map(o => ({
-        id: o.id,
+        id: Number(o.id),
         startDate: o.start_date,
         unit: o.unit,
         name: o.name,
@@ -195,20 +195,20 @@ function render() {
 <td class="action-cell">
 
     <button class="btn-approve"
-        onclick="event.stopPropagation(); openEdit('${o.id}')"
+        onclick="event.stopPropagation(); openEdit(${o.id})"
         ${o.completed ? "disabled" : ""}>
         编辑
     </button>
 
     ${hideActions ? "" : `
     <button class="btn-pay-green"
-        onclick="event.stopPropagation(); toggleComplete('${o.id}')">
+        onclick="event.stopPropagation(); toggleComplete(${o.id})">
         完成
     </button>`}
 
     ${hideActions ? "" : `
     <button class="danger"
-        onclick="event.stopPropagation(); removeOrder('${o.id}')"
+        onclick="event.stopPropagation(); removeOrder(${o.id})"
         ${o.completed ? "disabled" : ""}>
         删除
     </button>`}
