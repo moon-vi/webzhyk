@@ -25,6 +25,7 @@ async function loadAccountsFromSupabase() {
     }
 
     allAccounts = (data || []).map(u => ({
+        id: Number(u.id),
         jobId: u.job_no || "",
         name: u.name || "",
         phone: u.phone || "",
@@ -198,6 +199,11 @@ async function saveAccountEdit() {
 /* ============================================================
 五、删除账号
 ============================================================ */
+function confirmDelete(jobId) {
+    deleteTarget = jobId;
+    Modal.open("deleteModal");
+}
+
 async function deleteAccount() {
     if (!deleteTarget) return;
 
