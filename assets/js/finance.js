@@ -1582,7 +1582,8 @@ function renderFinanceStats(module, filteredList) {
 
     if (role === "staff" || role === "outsourcing") {
         dailyData = dailyList.filter(r => r.payer === username);
-        payrollData = payrollList.filter(r => r.name === username);
+        // ★ 工资统计：员工/外包只能看到"已发"（完成）状态且是自己的记录
+        payrollData = payrollList.filter(r => r.name === username && r.cashierStatus === "已发");
         projectData = projectList.filter(r => r.payer === username);
     }
 
@@ -1694,7 +1695,8 @@ function getFilteredList() {
 
     if (role === "staff" || role === "outsourcing") {
         if (currentModule === "daily")  list = list.filter(r => r.payer === user.name);
-        if (currentModule === "payroll") list = list.filter(r => r.name === user.name);
+        // ★ 工资管理：员工/外包只能看到"已发"（完成）状态且是自己的记录
+        if (currentModule === "payroll") list = list.filter(r => r.name === user.name && r.cashierStatus === "已发");
         if (currentModule === "project") list = list.filter(r => r.payer === user.name);
     }
 
