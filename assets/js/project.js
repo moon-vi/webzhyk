@@ -279,6 +279,22 @@ function openAdd() {
     const logBox = document.getElementById("m_logs");
     if (logBox) logBox.innerText = "（保存后自动生成日志）";
 
+    // ★ 新增订单时：所有角色都可以编辑全部字段，重置所有字段为可编辑
+    const allFields = [
+        "m_startDate", "m_unit", "m_name", "m_amount",
+        "m_customer", "m_phone", "m_manager", "m_consultant", "m_director",
+        "m_contract", "m_invoice", "m_payment", "m_commission", "m_remark"
+    ];
+    allFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.readOnly = false;
+            el.disabled = false;
+            el.style.backgroundColor = "";
+            el.style.opacity = "";
+        }
+    });
+
     Modal.open("editModal");
 }
 
@@ -302,6 +318,54 @@ function openEdit(orderId) {
 
     const logBox = document.getElementById("m_logs");
     logBox.innerText = (o.logs || []).join("\n");
+
+    // ★ 根据角色限制可编辑字段
+    const role = Auth.currentUser?.role;
+    const allFields = [
+        "m_startDate", "m_unit", "m_name", "m_amount",
+        "m_customer", "m_phone", "m_manager", "m_consultant", "m_director",
+        "m_contract", "m_invoice", "m_payment", "m_commission", "m_remark"
+    ];
+
+    // 先全部设为可编辑
+    allFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.readOnly = false;
+            el.disabled = false;
+            el.style.backgroundColor = "";
+            el.style.opacity = "";
+        }
+    });
+
+    if (role === "staff" || role === "outsourcing") {
+        // 员工/外包：只能编辑备注
+        allFields.forEach(id => {
+            if (id !== "m_remark") {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.readOnly = true;
+                    el.disabled = true;
+                    el.style.backgroundColor = "var(--bg-tertiary)";
+                    el.style.opacity = "0.6";
+                }
+            }
+        });
+    } else if (role === "finance") {
+        // 财务：只能编辑合同、发票、回款、备注
+        allFields.forEach(id => {
+            if (id !== "m_contract" && id !== "m_invoice" && id !== "m_payment" && id !== "m_remark") {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.readOnly = true;
+                    el.disabled = true;
+                    el.style.backgroundColor = "var(--bg-tertiary)";
+                    el.style.opacity = "0.6";
+                }
+            }
+        });
+    }
+    // admin / boss：不限制，保持全部可编辑
 
     Modal.open("editModal");
 }
@@ -367,12 +431,30 @@ await recordOrderLog(`新增订单：${o.name}（客户：${o.customer}）`);
         o.logs = old.logs || [];
         addLog(o, "编辑订单");
 
-// ★ 写入系统日志
-await recordOrderLog(`编辑订单：ID ${editOrderId}`);
+        // ★ 写入系统日志
+        await recordOrderLog(`编辑订单：ID ${editOrderId}`);
 
-        const { error } = await supabase
-            .from("orders")
-            .update({
+        const role = Auth.currentUser?.role;
+        let updateData = {};
+
+        if (role === "staff" || role === "outsourcing") {
+            // 员工/外包：只能编辑备注
+            updateData = {
+                remark: o.remark,
+                logs: o.logs
+            };
+        } else if (role === "finance") {
+            // 财务：只能编辑合同、发票、回款、备注
+            updateData = {
+                contract: o.contract,
+                invoice: o.invoice,
+                payment: o.payment,
+                remark: o.remark,
+                logs: o.logs
+            };
+        } else {
+            // admin / boss：可以编辑所有字段
+            updateData = {
                 start_date: o.startDate,
                 unit: o.unit,
                 name: o.name,
@@ -388,7 +470,12 @@ await recordOrderLog(`编辑订单：ID ${editOrderId}`);
                 commission: o.commission,
                 remark: o.remark,
                 logs: o.logs
-            })
+            };
+        }
+
+        const { error } = await supabase
+            .from("orders")
+            .update(updateData)
             .eq("id", editOrderId);
 
         if (error) {
