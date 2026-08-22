@@ -888,7 +888,8 @@ async function saveDaily() {
         project: d_project.value,
         item: d_item.value,
         amount: Number(d_amount.value || 0),
-        payer: name,
+        // ★ 编辑时保留原经办人，新增时用当前用户
+        payer: isEdit ? (old.payer || name) : name,
         remark: d_remark.value,
         auditStatus: isEdit ? (old.auditStatus || "未审") : "未审",
         cashierStatus: isEdit ? (old.cashierStatus || "未发") : "未发",
@@ -964,11 +965,9 @@ function editRecord_daily(i) {
     d_amount.value = r.amount;
     d_remark.value = r.remark;
 
-    const user = Auth.currentUser || {};
-    const name = user.name || "";
-
-    document.getElementById("d_payer_display").innerText = name;
-    document.getElementById("d_payer").value = name;
+    // ★ 编辑时保留原经办人，不改成当前登录用户
+    document.getElementById("d_payer_display").innerText = r.payer || "";
+    document.getElementById("d_payer").value = r.payer || "";
 
     Modal.open("dailyModal");
 }
@@ -1233,7 +1232,8 @@ async function saveProject() {
         project: j_project.value,
         item: j_item.value,
         amount: Number(j_amount.value || 0),
-        payer: name,
+        // ★ 编辑时保留原经办人，新增时用当前用户
+        payer: isEdit ? (old.payer || name) : name,
         remark: j_remark.value,
         auditStatus: isEdit ? (old.auditStatus || "未审") : "未审",
         cashierStatus: isEdit ? (old.cashierStatus || "未发") : "未发",
@@ -1309,11 +1309,9 @@ function editRecord_project(i) {
     j_amount.value = r.amount;
     j_remark.value = r.remark;
 
-    const user = Auth.currentUser || {};
-    const name = user.name || "";
-
-    document.getElementById("j_payer_display").innerText = name;
-    document.getElementById("j_payer").value = name;
+    // ★ 编辑时保留原经办人，不改成当前登录用户
+    document.getElementById("j_payer_display").innerText = r.payer || "";
+    document.getElementById("j_payer").value = r.payer || "";
 
     Modal.open("projectModal");
 }
@@ -1670,6 +1668,19 @@ function switchModule(module) {
     PaginationManager.currentPage = 1;
     renderFinance();
 }
+
+/* 点击页面其他地方自动关闭模块下拉菜单 */
+document.addEventListener("click", function(e) {
+    const menu = document.getElementById("moduleMenu");
+    const btn = document.getElementById("moduleBtn");
+    if (!menu || !btn) return;
+    if (menu.style.display === "none") return;
+
+    // 如果点击的不是按钮本身，也不是下拉菜单内部，则关闭
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+        menu.style.display = "none";
+    }
+});
 
 /* 搜索过滤 */
 function getFilteredList() {

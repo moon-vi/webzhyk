@@ -170,7 +170,7 @@ function render() {
         const tr = document.createElement("tr");
 
         const amountDisplay = "¥" + Utils.money(o.amount);
-        const hideActions = (role === "staff" || role === "outsourcing");
+        const hideActions = (role === "staff" || role === "outsourcing" || role === "finance");
 
         tr.innerHTML = `
 <td>${o.startDate || ""}</td>
