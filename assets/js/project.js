@@ -755,6 +755,15 @@ function closeBackupManager() { Modal.close("backupModal"); }
 初始化：加载订单 + 加载人员 + 搜索绑定 + 权限处理
 ============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
+    // ★ 加载数据前先禁用敏感按钮，防止数据未加载时操作
+    ["btnBackupManager", "btnExport", "btnImport"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.disabled = true;
+            el.classList.add("btn-disabled");
+        }
+    });
+
     await loadAccounts();
 
     PaginationManager.attach({
@@ -763,6 +772,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     await loadOrdersFromSupabase();
+
+    // ★ 数据加载完成后，根据角色权限启用/禁用按钮
+    const role = Auth.currentUser?.role;
+    if (role !== "staff" && role !== "outsourcing" && role !== "finance") {
+        ["btnBackupManager", "btnExport", "btnImport"].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.disabled = false;
+                el.classList.remove("btn-disabled");
+            }
+        });
+    }
 
     const kw = document.getElementById("keyword");
     if (kw) {
