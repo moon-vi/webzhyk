@@ -191,6 +191,133 @@ function sortFinanceList(list, module) {
 }
 
 /* ============================================================
+权限控制辅助函数
+============================================================ */
+
+function isRecordOwner(record, module, userName) {
+    if (module === "daily") return record.payer === userName;
+    if (module === "payroll") return record.name === userName;
+    if (module === "project") return record.payer === userName;
+    return false;
+}
+
+function checkActionPermission(action, module, index) {
+    const list = getListByModule(module);
+    const r = list[index];
+    const state = getState(r);
+    const user = Auth.currentUser || {};
+    const role = user.role;
+    const userName = user.name || "";
+    const isOwner = isRecordOwner(r, module, userName);
+
+    // ===== 所有角色通用状态校验 =====
+    // 拒绝按钮：完成记录不能拒绝
+    if (action === "reject") {
+        if (state === "已发") {
+            alert("完成记录无法进行此操作");
+            return false;
+        }
+        // 已审记录不能拒绝
+        if (state === "已审") {
+            alert("已审记录无法进行此操作");
+            return false;
+        }
+    }
+    // 同意按钮：完成记录不能同意
+    if (action === "approve") {
+        if (state === "已发") {
+            alert("完成记录无法进行此操作");
+            return false;
+        }
+    }
+    // 删除按钮：所有角色都不能删除已审/已完成记录
+    if (action === "delete") {
+        if (state === "已发") {
+            alert("完成记录无法进行此操作");
+            return false;
+        }
+        if (state === "已审") {
+            alert("已审记录无法进行此操作");
+            return false;
+        }
+    }
+
+    // ===== 角色专属权限校验 =====
+    // 员工 / 外包
+    if (role === "staff" || role === "outsourcing") {
+        if (action === "reject" || action === "approve" || action === "finish") {
+            alert("您没有权限进行此操作");
+            return false;
+        }
+        if (action === "edit" || action === "delete") {
+            if (!isOwner) {
+                alert("只能操作自己的记录");
+                return false;
+            }
+            if (action === "edit") {
+                if (state === "已审") {
+                    alert("已审记录无法进行此操作");
+                    return false;
+                }
+                if (state === "已发") {
+                    alert("完成记录无法进行此操作");
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    // 财务
+    if (role === "finance") {
+        if (action === "reject" || action === "approve") {
+            alert("您没有权限进行此操作");
+            return false;
+        }
+        if (action === "finish") {
+            if (state === "未审" || state === "拒绝") {
+                alert("未审记录无法进行此操作");
+                return false;
+            }
+            if (state === "已发") {
+                alert("完成记录无法进行此操作");
+                return false;
+            }
+            return true;
+        }
+        if (action === "edit") {
+            if (state === "已发") {
+                alert("完成记录无法进行此操作");
+                return false;
+            }
+            return true;
+        }
+        if (action === "delete") {
+            if (!isOwner) {
+                alert("只能删除自己的记录");
+                return false;
+            }
+            return true;
+        }
+    }
+
+    // 老板
+    if (role === "boss") {
+        if (action === "edit") {
+            if (state === "已发") {
+                alert("完成记录无法进行此操作");
+                return false;
+            }
+            return true;
+        }
+        return true;
+    }
+
+    // admin
+    return true;
+}
+
+/* ============================================================
 从订单系统加载项目名称（orders.name）
 ============================================================ */
 async function loadProjectNamesFromSupabase() {
@@ -259,40 +386,46 @@ async function doRejectAction(module, index) {
     const supabase = window.supabaseClient;
     const record = { ...r, logs: r.logs || [] };
 
-    if (state === "未审") {
-        record.auditStatus = "拒绝";
-        addLog(record, "拒绝");
+    const execAction = async () => {
+        if (state === "未审") {
+            record.auditStatus = "拒绝";
+            addLog(record, "拒绝");
+            await recordFinanceLog(`拒绝财务记录：ID ${r.id}`);
+        } else if (state === "拒绝") {
+            record.auditStatus = "未审";
+            addLog(record, "取消拒绝");
+            await recordFinanceLog(`取消拒绝财务记录：ID ${r.id}`);
+        } else {
+            return;
+        }
 
-        // ★ 系统日志
-        await recordFinanceLog(`拒绝财务记录：ID ${r.id}`);
+        const { error } = await supabase
+            .from(table)
+            .update({ audit_status: record.auditStatus, logs: record.logs })
+            .eq("id", r.id);
 
-    } else if (state === "拒绝") {
-        record.auditStatus = "未审";
-        addLog(record, "取消拒绝");
+        if (error) {
+            console.error("更新拒绝状态失败", error);
+            alert("更新拒绝状态失败，请检查表结构或网络");
+            return;
+        }
 
-        // ★ 系统日志
-        await recordFinanceLog(`取消拒绝财务记录：ID ${r.id}`);
+        await loadFinanceData();
+        renderFinance();
+    };
 
+    const role = Auth.currentUser?.role;
+    if (role === "boss" || role === "admin") {
+        const actionText = state === "拒绝" ? "取消拒绝" : "拒绝";
+        Confirm.open({
+            modalId: "confirmModal",
+            textId: "confirmMessage",
+            text: `确定要${actionText}该记录吗？`,
+            async onConfirm() { await execAction(); }
+        });
     } else {
-        return;
+        await execAction();
     }
-
-    const { error } = await supabase
-        .from(table)
-        .update({
-            audit_status: record.auditStatus,
-            logs: record.logs
-        })
-        .eq("id", r.id);
-
-    if (error) {
-        console.error("更新拒绝状态失败", error);
-        alert("更新拒绝状态失败，请检查表结构或网络");
-        return;
-    }
-
-    await loadFinanceData();
-    renderFinance();
 }
 
 async function doApproveAction(module, index) {
@@ -308,64 +441,80 @@ async function doApproveAction(module, index) {
     const supabase = window.supabaseClient;
     const record = { ...r, logs: r.logs || [] };
 
+    const role = Auth.currentUser?.role;
+
     // ★ 审核通过
     if (state === "未审" || state === "拒绝") {
-        record.auditStatus = "已审";
-        addLog(record, "审核通过");
+        const execApprove = async () => {
+            record.auditStatus = "已审";
+            addLog(record, "审核通过");
+            await recordFinanceLog(`审核财务记录：ID ${r.id}`);
 
-        // ★ 系统日志
-        await recordFinanceLog(`审核财务记录：ID ${r.id}`);
+            const { error } = await supabase
+                .from(table)
+                .update({ audit_status: record.auditStatus, logs: record.logs })
+                .eq("id", r.id);
 
-        const { error } = await supabase
-            .from(table)
-            .update({
-                audit_status: record.auditStatus,
-                logs: record.logs
-            })
-            .eq("id", r.id);
+            if (error) {
+                console.error("审核失败", error);
+                alert("审核失败，请检查表结构或网络");
+                return;
+            }
 
-        if (error) {
-            console.error("审核失败", error);
-            alert("审核失败，请检查表结构或网络");
-            return;
+            await loadFinanceData();
+            renderFinance();
+        };
+
+        if (role === "boss" || role === "admin") {
+            Confirm.open({
+                modalId: "confirmModal",
+                textId: "confirmMessage",
+                text: "确定要审核通过该记录吗？",
+                async onConfirm() { await execApprove(); }
+            });
+        } else {
+            await execApprove();
         }
-
-        await loadFinanceData();
-        renderFinance();
         return;
     }
 
     // ★ 取消审核
     if (state === "已审") {
-        Confirm.open({
-            modalId: "confirmModal",
-            textId: "confirmMessage",
-            text: "确定取消审核？",
-            async onConfirm() {
-                record.auditStatus = "未审";
-                addLog(record, "取消审核");
+        const execCancel = async () => {
+            record.auditStatus = "未审";
+            addLog(record, "取消审核");
+            await recordFinanceLog(`取消审核财务记录：ID ${r.id}`);
 
-                // ★ 系统日志
-                await recordFinanceLog(`取消审核财务记录：ID ${r.id}`);
+            const { error } = await supabase
+                .from(table)
+                .update({ audit_status: record.auditStatus, logs: record.logs })
+                .eq("id", r.id);
 
-                const { error } = await supabase
-                    .from(table)
-                    .update({
-                        audit_status: record.auditStatus,
-                        logs: record.logs
-                    })
-                    .eq("id", r.id);
-
-                if (error) {
-                    console.error("取消审核失败", error);
-                    alert("取消审核失败，请检查表结构或网络");
-                    return;
-                }
-
-                await loadFinanceData();
-                renderFinance();
+            if (error) {
+                console.error("取消审核失败", error);
+                alert("取消审核失败，请检查表结构或网络");
+                return;
             }
-        });
+
+            await loadFinanceData();
+            renderFinance();
+        };
+
+        if (role === "boss" || role === "admin") {
+            Confirm.open({
+                modalId: "confirmModal",
+                textId: "confirmMessage",
+                text: "确定取消审核该记录吗？",
+                async onConfirm() { await execCancel(); }
+            });
+        } else {
+            Confirm.open({
+                modalId: "confirmModal",
+                textId: "confirmMessage",
+                text: "确定取消审核？",
+                async onConfirm() { await execCancel(); }
+            });
+        }
     }
 }
 
@@ -374,6 +523,11 @@ async function doFinishAction(module, index) {
     const r = list[index];
     const state = getState(r);
 
+    if (state === "未审" || state === "拒绝") {
+        alert("未审记录无法进行此操作");
+        return;
+    }
+
     let table = "";
     if (module === "daily") table = "finance_daily";
     if (module === "payroll") table = "finance_payroll";
@@ -381,76 +535,82 @@ async function doFinishAction(module, index) {
 
     const supabase = window.supabaseClient;
     const record = { ...r, logs: r.logs || [] };
+    const role = Auth.currentUser?.role;
 
     // ★ 完成发放
     if (state === "已审") {
-        record.cashierStatus = "已发";
-        addLog(record, "完成发放");
+        const execFinish = async () => {
+            record.cashierStatus = "已发";
+            addLog(record, "完成发放");
+            await recordFinanceLog(`完成发放财务记录：ID ${r.id}`);
 
-        // ★ 系统日志
-        await recordFinanceLog(`完成发放财务记录：ID ${r.id}`);
+            const { error } = await supabase
+                .from(table)
+                .update({ cashier_status: record.cashierStatus, logs: record.logs })
+                .eq("id", r.id);
 
-        const { error } = await supabase
-            .from(table)
-            .update({
-                cashier_status: record.cashierStatus,
-                logs: record.logs
-            })
-            .eq("id", r.id);
+            if (error) {
+                console.error("完成发放失败", error);
+                alert("完成发放失败，请检查表结构或网络");
+                return;
+            }
 
-        if (error) {
-            console.error("完成发放失败", error);
-            alert("完成发放失败，请检查表结构或网络");
-            return;
+            await loadFinanceData();
+            renderFinance();
+        };
+
+        if (role === "boss" || role === "admin" || role === "finance") {
+            Confirm.open({
+                modalId: "confirmModal",
+                textId: "confirmMessage",
+                text: "确定要完成发放该记录吗？",
+                async onConfirm() { await execFinish(); }
+            });
+        } else {
+            await execFinish();
         }
-
-        await loadFinanceData();
-        renderFinance();
         return;
     }
 
     // ★ 取消完成
     if (state === "已发") {
-        Confirm.open({
-            modalId: "confirmModal",
-            textId: "confirmMessage",
-            text: "确定取消完成？",
-            async onConfirm() {
-                record.cashierStatus = "未发";
-                record.auditStatus = "已审";
-                addLog(record, "取消完成");
+        const execCancel = async () => {
+            record.cashierStatus = "未发";
+            record.auditStatus = "已审";
+            addLog(record, "取消完成");
+            await recordFinanceLog(`取消完成财务记录：ID ${r.id}`);
 
-                // ★ 系统日志
-                await recordFinanceLog(`取消完成财务记录：ID ${r.id}`);
+            const { error } = await supabase
+                .from(table)
+                .update({ cashier_status: record.cashierStatus, audit_status: record.auditStatus, logs: record.logs })
+                .eq("id", r.id);
 
-                const { error } = await supabase
-                    .from(table)
-                    .update({
-                        cashier_status: record.cashierStatus,
-                        audit_status: record.auditStatus,
-                        logs: record.logs
-                    })
-                    .eq("id", r.id);
-
-                if (error) {
-                    console.error("取消完成失败", error);
-                    alert("取消完成失败，请检查表结构或网络");
-                    return;
-                }
-
-                await loadFinanceData();
-                renderFinance();
+            if (error) {
+                console.error("取消完成失败", error);
+                alert("取消完成失败，请检查表结构或网络");
+                return;
             }
-        });
-        return;
-    }
 
-    Confirm.open({
-        modalId: "confirmModal",
-        textId: "confirmMessage",
-        text: "请先审核为已审再完成",
-        onConfirm() {}
-    });
+            await loadFinanceData();
+            renderFinance();
+        };
+
+        if (role === "boss" || role === "admin" || role === "finance") {
+            Confirm.open({
+                modalId: "confirmModal",
+                textId: "confirmMessage",
+                text: "确定要取消完成该记录吗？",
+                async onConfirm() { await execCancel(); }
+            });
+        } else {
+            Confirm.open({
+                modalId: "confirmModal",
+                textId: "confirmMessage",
+                text: "确定取消完成？",
+                async onConfirm() { await execCancel(); }
+            });
+        }
+    }
 }
 
 /* ============================================================
@@ -460,94 +620,29 @@ async function doFinishAction(module, index) {
 function renderActionButtons(r, index, module) {
     const state = getState(r);
 
-    const btn = {
-        reject: { text: "拒绝", class: "danger", disabled: false },
-        approve: { text: "同意", class: "btn-approve", disabled: false },
-        finish: { text: "完成", class: "btn-pay-gray", disabled: false },
-        edit: { text: "编辑", class: "btn-approve", disabled: false },
-        del: { text: "删除", class: "danger", disabled: false }
+    const btnClass = {
+        reject:  state === "拒绝" ? "btn-pay-green" : "danger",
+        approve: state === "已审" ? "btn-pay-green" : "btn-approve",
+        finish:  state === "已发" ? "btn-pay-green" : (state === "已审" ? "btn-pay-orange" : "btn-pay-gray"),
+        edit:    "btn-approve",
+        del:     "danger"
     };
 
-    const user = Auth.currentUser || {};
-    const role = user.role;
-
-    /* 财务权限：不能拒绝、不能同意，只能完成 */
-    if (role === "finance") {
-        btn.reject.disabled = true;
-        btn.approve.disabled = true;
-
-        if (state !== "已审") {
-            btn.finish.disabled = true;
-        }
-
-        const isOwner =
-            (module === "daily"   && r.payer === user.name) ||
-            (module === "project" && r.payer === user.name) ||
-            (module === "payroll" && r.name  === user.name);
-
-        if (!isOwner) {
-            btn.del.disabled = true;
-        }
-    }
-
-    /* 员工 / 外包：隐藏审核按钮 */
-    if (role === "staff" || role === "outsourcing") {
-        const canEditOrDelete =
-            getState(r) === "未审" || getState(r) === "拒绝";
-
-        return `
-        <button class="btn-approve" disabled style="display:none"></button>
-        <button class="btn-approve" disabled style="display:none"></button>
-        <button class="btn-pay-gray" disabled style="display:none"></button>
-
-        <button class="btn-approve" ${canEditOrDelete ? "" : "disabled"}
-            onclick="event.stopPropagation(); ${canEditOrDelete ? `editRecord('${module}', ${index})` : ""};">
-            编辑
-        </button>
-
-        <button class="danger" ${canEditOrDelete ? "" : "disabled"}
-            onclick="event.stopPropagation(); ${canEditOrDelete ? `deleteRecord('${module}', ${index})` : ""};">
-            删除
-        </button>
-    `;
-    }
-
-    /* 原有状态机逻辑 */
-    if (state === "未审") btn.finish.disabled = true;
-
-    if (state === "已审") {
-        btn.reject.disabled = true;
-        btn.approve.class = "btn-pay-green";
-        btn.finish.class = "btn-pay-orange";
-        btn.edit.disabled = true;
-        btn.del.disabled = true;
-    }
-
-    if (state === "拒绝") btn.finish.disabled = true;
-
-    if (state === "已发") {
-        btn.reject.disabled = true;
-        btn.approve.disabled = true;
-        btn.finish.class = "btn-pay-green";
-        btn.edit.disabled = true;
-        btn.del.disabled = true;
-    }
-
     return `
-<button class="${btn.reject.class}" ${btn.reject.disabled ? "disabled" : ""}
-    onclick="event.stopPropagation(); doRejectAction('${module}', ${index});">${btn.reject.text}</button>
+<button class="${btnClass.reject}"
+    onclick="event.stopPropagation(); if(checkActionPermission('reject','${module}',${index})){ doRejectAction('${module}',${index}); }">拒绝</button>
 
-<button class="${btn.approve.class}" ${btn.approve.disabled ? "disabled" : ""}
-    onclick="event.stopPropagation(); doApproveAction('${module}', ${index});">${btn.approve.text}</button>
+<button class="${btnClass.approve}"
+    onclick="event.stopPropagation(); if(checkActionPermission('approve','${module}',${index})){ doApproveAction('${module}',${index}); }">同意</button>
 
-<button class="${btn.finish.class}" ${btn.finish.disabled ? "disabled" : ""}
-    onclick="event.stopPropagation(); doFinishAction('${module}', ${index});">${btn.finish.text}</button>
+<button class="${btnClass.finish}"
+    onclick="event.stopPropagation(); if(checkActionPermission('finish','${module}',${index})){ doFinishAction('${module}',${index}); }">完成</button>
 
-<button class="${btn.edit.class}" ${btn.edit.disabled ? "disabled" : ""}
-    onclick="event.stopPropagation(); editRecord('${module}', ${index});">编辑</button>
+<button class="${btnClass.edit}"
+    onclick="event.stopPropagation(); if(checkActionPermission('edit','${module}',${index})){ editRecord('${module}',${index}); }">编辑</button>
 
-<button class="${btn.del.class}" ${btn.del.disabled ? "disabled" : ""}
-    onclick="event.stopPropagation(); deleteRecord('${module}', ${index});">删除</button>
+<button class="${btnClass.del}"
+    onclick="event.stopPropagation(); if(checkActionPermission('delete','${module}',${index})){ deleteRecord('${module}',${index}); }">删除</button>
 `;
 }
 
@@ -578,10 +673,10 @@ function renderDailyTable(list) {
             <tr><td style="height:40px; padding:0; margin:0;" colspan="20"></td></tr>
         `;
     }
-const newSize = calcPageSize();
-if (newSize && newSize !== PaginationManager.pageSize) {
-    PaginationManager.pageSize = newSize;
-}
+	const newSize = calcPageSize();
+	if (newSize && newSize !== PaginationManager.pageSize) {
+	    PaginationManager.pageSize = newSize;
+	}
 
     // 清空假数据
     tbody.innerHTML = "";
@@ -618,10 +713,10 @@ function renderPayrollTable(list) {
             <tr><td style="height:40px; padding:0; margin:0;" colspan="20"></td></tr>
         `;
     }
-const newSize = calcPageSize();
-if (newSize && newSize !== PaginationManager.pageSize) {
-    PaginationManager.pageSize = newSize;
-}
+	const newSize = calcPageSize();
+	if (newSize && newSize !== PaginationManager.pageSize) {
+	    PaginationManager.pageSize = newSize;
+	}
 
     // 清空假行
     tbody.innerHTML = "";
@@ -663,10 +758,10 @@ function renderProjectTable(list) {
             <tr><td style="height:40px; padding:0; margin:0;" colspan="20"></td></tr>
         `;
     }
-const newSize = calcPageSize();
-if (newSize && newSize !== PaginationManager.pageSize) {
-    PaginationManager.pageSize = newSize;
-}
+	const newSize = calcPageSize();
+	if (newSize && newSize !== PaginationManager.pageSize) {
+	    PaginationManager.pageSize = newSize;
+	}
 
     // 清空假行
     tbody.innerHTML = "";
@@ -775,6 +870,7 @@ function closeProjectView() { Modal.close("projectViewModal"); }
 let _pendingDelete = null;
 
 function deleteRecord(module, index) {
+    if (!checkActionPermission('delete', module, index)) return;
     _pendingDelete = { module, index };
     const r = getListByModule(module)[index];
 
@@ -817,14 +913,14 @@ async function confirmFinanceDelete() {
     .delete()
     .eq("id", r.id);
 
-if (error) {
-    console.error("删除失败", error);
-    alert("删除失败，请检查表结构或网络");
-    return;
-}
-
-// ★ 写入系统日志
-await recordFinanceLog(`删除财务记录：ID ${r.id}`);
+	if (error) {
+	    console.error("删除失败", error);
+	    alert("删除失败，请检查表结构或网络");
+	    return;
+	}
+	
+	// ★ 写入系统日志
+	await recordFinanceLog(`删除财务记录：ID ${r.id}`);
 
     closeFinanceDelete();
     await loadFinanceData();
@@ -839,7 +935,7 @@ function openAddFinance() {
     const user = Auth.currentUser || {};
     const role = user.role;
 
-    if (currentModule === "payroll" && (role === "staff" || role === "outsourcing")) {
+    if (currentModule === "payroll" && (role === "staff" || role === "outsourcing" || role === "finance")) {
         alert("您没有权限新增工资记录");
         return;
     }
@@ -867,7 +963,11 @@ function openDailyModal() {
     Modal.open("dailyModal");
 }
 
-function closeDailyModal() { Modal.close("dailyModal"); }
+function closeDailyModal() {
+    Modal.close("dailyModal");
+    d_date.readOnly = false; d_project.readOnly = false;
+    d_item.readOnly = false; d_amount.readOnly = false; d_remark.readOnly = false;
+}
 
 async function saveDaily() {
     if (!d_date.value) {
@@ -956,7 +1056,12 @@ if (isEdit) {
 }
 
 function editRecord_daily(i) {
+    if (!checkActionPermission('edit', 'daily', i)) return;
     const r = dailyList[i];
+    const user = Auth.currentUser || {};
+    const role = user.role;
+    const isOwner = r.payer === user.name;
+
     window._editDailyIndex = i;
 
     d_date.value = r.date;
@@ -968,6 +1073,20 @@ function editRecord_daily(i) {
     // ★ 编辑时保留原经办人，不改成当前登录用户
     document.getElementById("d_payer_display").innerText = r.payer || "";
     document.getElementById("d_payer").value = r.payer || "";
+
+    // 重置所有字段可编辑
+    d_date.readOnly = false; d_project.readOnly = false;
+    d_item.readOnly = false; d_amount.readOnly = false; d_remark.readOnly = false;
+
+    // 财务编辑非自己记录：只能编辑备注
+    if (role === "finance" && !isOwner) {
+        d_date.readOnly = true; d_project.readOnly = true;
+        d_item.readOnly = true; d_amount.readOnly = true;
+    }
+    // 老板编辑非自己记录：金额栏无法编辑
+    if (role === "boss" && !isOwner) {
+        d_amount.readOnly = true;
+    }
 
     Modal.open("dailyModal");
 }
@@ -1097,13 +1216,12 @@ if (isEdit) {
 }
 
 function editRecord_payroll(i) {
-    const role = Auth.role;
-    if (role === "staff" || role === "outsourcing") {
-        alert("您没有权限编辑工资记录");
-        return;
-    }
-
+    if (!checkActionPermission('edit', 'payroll', i)) return;
     const r = payrollList[i];
+    const user = Auth.currentUser || {};
+    const role = user.role;
+    const isOwner = r.name === user.name;
+
     window._editPayrollIndex = i;
 
     p_month.value = r.month;
@@ -1133,6 +1251,29 @@ function editRecord_payroll(i) {
     p_perf.value = r.perf;
 
     calcPayrollTotal();
+
+    // 重置所有字段
+    p_month.readOnly = false; p_name.readOnly = false;
+    p_base.readOnly = true; p_position.readOnly = true;
+    p_perf.disabled = false; p_bonus.readOnly = false;
+    p_pc.readOnly = true; p_traffic.readOnly = true;
+    p_other.readOnly = false; p_actual.readOnly = true;
+    p_remark.readOnly = false;
+
+    // 财务编辑非自己记录：只能编辑备注
+    if (role === "finance" && !isOwner) {
+        p_month.readOnly = true; p_name.readOnly = true;
+        p_perf.disabled = true; p_bonus.readOnly = true;
+        p_other.readOnly = true;
+    }
+
+    // 老板编辑非自己记录：金额栏无法编辑
+    if (role === "boss" && !isOwner) {
+        p_base.readOnly = true; p_position.readOnly = true;
+        p_perf.disabled = true; p_bonus.readOnly = true;
+        p_pc.readOnly = true; p_traffic.readOnly = true;
+        p_other.readOnly = true; p_actual.readOnly = true;
+    }
 
     Modal.open("payrollModal");
 }
@@ -1211,7 +1352,11 @@ function openProjectModal() {
     Modal.open("projectModal");
 }
 
-function closeProjectModal() { Modal.close("projectModal"); }
+function closeProjectModal() {
+    Modal.close("projectModal");
+    j_date.readOnly = false; j_project.readOnly = false;
+    j_item.readOnly = false; j_amount.readOnly = false; j_remark.readOnly = false;
+}
 
 async function saveProject() {
     if (!j_date.value) {
@@ -1300,7 +1445,12 @@ if (isEdit) {
 }
 
 function editRecord_project(i) {
+    if (!checkActionPermission('edit', 'project', i)) return;
     const r = projectList[i];
+    const user = Auth.currentUser || {};
+    const role = user.role;
+    const isOwner = r.payer === user.name;
+
     window._editProjectIndex = i;
 
     j_date.value = r.date;
@@ -1312,6 +1462,20 @@ function editRecord_project(i) {
     // ★ 编辑时保留原经办人，不改成当前登录用户
     document.getElementById("j_payer_display").innerText = r.payer || "";
     document.getElementById("j_payer").value = r.payer || "";
+
+    // 重置所有字段可编辑
+    j_date.readOnly = false; j_project.readOnly = false;
+    j_item.readOnly = false; j_amount.readOnly = false; j_remark.readOnly = false;
+
+    // 财务编辑非自己记录：只能编辑备注
+    if (role === "finance" && !isOwner) {
+        j_date.readOnly = true; j_project.readOnly = true;
+        j_item.readOnly = true; j_amount.readOnly = true;
+    }
+    // 老板编辑非自己记录：金额栏无法编辑
+    if (role === "boss" && !isOwner) {
+        j_amount.readOnly = true;
+    }
 
     Modal.open("projectModal");
 }
@@ -1937,4 +2101,3 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     switchModule("daily");
 });
-

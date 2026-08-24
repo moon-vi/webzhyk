@@ -170,7 +170,6 @@ function render() {
         const tr = document.createElement("tr");
 
         const amountDisplay = "¥" + Utils.money(o.amount);
-        const hideActions = (role === "staff" || role === "outsourcing" || role === "finance");
 
         tr.innerHTML = `
 <td>${o.startDate || ""}</td>
@@ -195,23 +194,19 @@ function render() {
 <td class="action-cell">
 
     <button class="btn-approve"
-        onclick="event.stopPropagation(); openEdit(${o.id})"
-        ${o.completed ? "disabled" : ""}>
+        onclick="event.stopPropagation(); openEdit(${o.id})">
         编辑
     </button>
 
-    ${hideActions ? "" : `
     <button class="btn-pay-green"
         onclick="event.stopPropagation(); toggleComplete(${o.id})">
         完成
-    </button>`}
+    </button>
 
-    ${hideActions ? "" : `
     <button class="danger"
-        onclick="event.stopPropagation(); removeOrder(${o.id})"
-        ${o.completed ? "disabled" : ""}>
+        onclick="event.stopPropagation(); removeOrder(${o.id})">
         删除
-    </button>`}
+    </button>
 
 </td>
 `;
@@ -304,6 +299,12 @@ function openAdd() {
 function openEdit(orderId) {
     const o = orders.find(x => x.id === orderId);
     if (!o) return;
+
+    // ★ 已完成订单不能编辑
+    if (o.completed) {
+        alert("完成订单无法进行此操作");
+        return;
+    }
 
     editOrderId = orderId;
 
@@ -513,7 +514,19 @@ function view(orderId) {
 删除订单
 ============================================================ */
 function removeOrder(orderId) {
+    const role = Auth.currentUser?.role;
+    if (role === "staff" || role === "outsourcing" || role === "finance") {
+        alert("您没有权限进行此操作");
+        return;
+    }
+
     const o = orders.find(x => x.id === orderId);
+
+    // ★ 已完成订单不能删除
+    if (o.completed) {
+        alert("完成订单无法进行此操作");
+        return;
+    }
 
     Confirm.open({
         modalId: "deleteModal",
@@ -549,6 +562,12 @@ function confirmDelete() {
 完成状态切换
 ============================================================ */
 function toggleComplete(orderId) {
+    const role = Auth.currentUser?.role;
+    if (role === "staff" || role === "outsourcing" || role === "finance") {
+        alert("您没有权限进行此操作");
+        return;
+    }
+
     const o = orders.find(x => x.id === orderId);
     if (!o) return;
 
