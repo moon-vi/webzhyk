@@ -314,6 +314,10 @@ function checkActionPermission(action, module, index) {
     }
 
     // admin
+    if (action === "edit" && state === "已发") {
+        alert("完成记录无法进行此操作");
+        return false;
+    }
     return true;
 }
 
@@ -1267,13 +1271,17 @@ function editRecord_payroll(i) {
         p_other.readOnly = true;
     }
 
-    // 老板编辑非自己记录：金额栏无法编辑
-    if (role === "boss" && !isOwner) {
+// 老板编辑工资记录：已审状态只能编辑备注，未审/拒绝可编辑全部
+if (role === "boss") {
+    const state = getState(r);
+    if (state === "已审") {
+        p_month.readOnly = true; p_name.readOnly = true;
         p_base.readOnly = true; p_position.readOnly = true;
         p_perf.disabled = true; p_bonus.readOnly = true;
         p_pc.readOnly = true; p_traffic.readOnly = true;
         p_other.readOnly = true; p_actual.readOnly = true;
     }
+}
 
     Modal.open("payrollModal");
 }

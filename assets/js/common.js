@@ -575,7 +575,13 @@ window.login = async function () {
             return;
         }
 
-        // 3. 登录成功：写入 sessionStorage（统一结构）
+        // 3. 检查账号是否被禁用
+        if (user.enabled === false) {
+            if (errorEl) errorEl.textContent = "账号已被禁用，请联系管理员";
+            return;
+        }
+
+        // 4. 登录成功：写入 sessionStorage（统一结构）
         const sessionUser = {
             id: user.id,
             name: user.name,

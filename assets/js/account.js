@@ -134,6 +134,28 @@ function openEditModal(jobId) {
     const acc = allAccounts.find(a => a.jobId === jobId);
     if (!acc) return;
 
+    const user = Auth.currentUser || {};
+    const sessionUser = JSON.parse(sessionStorage.getItem("sessionUser") || "null") || {};
+
+    // 非admin角色不能修改管理员账号
+    if (acc.role === "admin" && user.role !== "admin") {
+        alert("您无权限修改管理员帐号");
+        return;
+    }
+
+    // admin只能修改自己的账号（不能修改其他admin的）
+    if (acc.role === "admin" && acc.jobId !== sessionUser.jobNo) {
+        alert("管理员帐号只能自行修改");
+        return;
+    }
+
+    // ... 原有填充表单代码不变
+}
+
+function openEditModal(jobId) {
+    const acc = allAccounts.find(a => a.jobId === jobId);
+    if (!acc) return;
+
     edit_jobId.value = acc.jobId;
     edit_name.value = acc.name;
     edit_phone.value = acc.phone;
@@ -200,6 +222,11 @@ async function saveAccountEdit() {
 五、删除账号
 ============================================================ */
 function confirmDelete(jobId) {
+    const acc = allAccounts.find(a => a.jobId === jobId);
+    if (acc && acc.role === "admin") {
+        alert("管理员无法被删除");
+        return;
+    }
     deleteTarget = jobId;
     Modal.open("deleteModal");
 }
@@ -235,8 +262,15 @@ async function toggleEnable(jobId) {
     const acc = allAccounts.find(a => a.jobId === jobId);
     if (!acc) return;
 
-    const supabase = window.supabaseClient;
     const newEnabled = !acc.enabled;
+
+    // 禁止禁用管理员账号
+    if (!newEnabled && acc.role === "admin") {
+        alert("管理员无法被禁用");
+        return;
+    }
+
+    const supabase = window.supabaseClient;
 
     const { error } = await supabase
         .from("users")
@@ -244,18 +278,17 @@ async function toggleEnable(jobId) {
         .eq("job_no", jobId);
 
     if (error) {
-    console.error("更新启用状态失败：", error);
-    alert("更新启用状态失败，请检查控制台");
-    return;
+        console.error("更新启用状态失败：", error);
+        alert("更新启用状态失败，请检查控制台");
+        return;
+    }
+
+    // ★ 写入操作日志
+    await recordActionLog(`${newEnabled ? "启用" : "禁用"}账号：工号 ${jobId}`);
+
+    acc.enabled = newEnabled;
+    searchAccounts();
 }
-
-// ★ 写入操作日志
-await recordActionLog(`${newEnabled ? "启用" : "禁用"}账号：工号 ${jobId}`);
-
-acc.enabled = newEnabled;
-searchAccounts();
-}
-
 /* ============================================================
 七、渲染账号列表 + 动态分页
 ============================================================ */
